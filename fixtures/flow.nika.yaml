@@ -18,7 +18,7 @@ description: "gather → think → persist"   # SLOT: one honest sentence
 model: ollama/qwen3.5:4b           # SLOT: provider/model · local · zero key
 
 vars:
-  source: "./input.txt"             # SLOT: your inputs · typed where required
+  source: "fixtures/input.txt"      # SLOT: your inputs · typed where required
 
 tasks:
   - id: gather

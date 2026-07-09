@@ -1,0 +1,170 @@
+{
+  "analysis": {
+    "blast_radius": [
+      {
+        "blocks": 2,
+        "task": "gather"
+      },
+      {
+        "blocks": 1,
+        "task": "think"
+      }
+    ],
+    "pinch_points": [
+      "gather",
+      "think",
+      "persist"
+    ],
+    "width": 1,
+    "width_witness": [
+      "persist"
+    ]
+  },
+  "capability_escapes": [],
+  "certificate": {
+    "derivation": [
+      {
+        "attempts": 1,
+        "deps": [],
+        "fanout": {
+          "known": 1
+        },
+        "finally_effect": 0,
+        "finally_llm": 0,
+        "finally_spend_micros": 0,
+        "main_effect": 1,
+        "main_llm": 0,
+        "main_spend_micros": 0,
+        "task": "gather"
+      },
+      {
+        "attempts": 1,
+        "deps": [
+          "gather"
+        ],
+        "fanout": {
+          "known": 1
+        },
+        "finally_effect": 0,
+        "finally_llm": 0,
+        "finally_spend_micros": 0,
+        "main_effect": 0,
+        "main_llm": 1,
+        "main_spend_micros": null,
+        "task": "think"
+      },
+      {
+        "attempts": 1,
+        "deps": [
+          "think"
+        ],
+        "fanout": {
+          "known": 1
+        },
+        "finally_effect": 0,
+        "finally_llm": 0,
+        "finally_spend_micros": 0,
+        "main_effect": 1,
+        "main_llm": 0,
+        "main_spend_micros": 0,
+        "task": "persist"
+      }
+    ],
+    "effect_calls": {
+      "constant": 2,
+      "terms": []
+    },
+    "llm_calls": {
+      "constant": 1,
+      "terms": []
+    },
+    "span_attempts": 3,
+    "task_attempts": {
+      "constant": 3,
+      "terms": []
+    },
+    "usd_micros": null
+  },
+  "clean": true,
+  "conformance": [],
+  "cost": {
+    "bounded_total_usd": 0.0,
+    "has_unbounded": true,
+    "min_path_total_usd": 0.0,
+    "tasks": [
+      {
+        "attempts": 1,
+        "gated": false,
+        "iterations": 1,
+        "max_tokens": null,
+        "min_path_usd": null,
+        "model": "ollama/qwen3.5:4b",
+        "task": "think",
+        "unbounded_reason": "NoTokenLimit",
+        "usd": null
+      }
+    ]
+  },
+  "gate_findings": [],
+  "hints": [
+    {
+      "advice": "declare `max_tokens` on `think` — the cost report becomes a hard ceiling instead of UNBOUNDED",
+      "kind": "cost",
+      "task": "think"
+    },
+    {
+      "advice": "no `permits:` boundary declared — run `nika check --infer-permits` to generate the tightest one (default-deny once present)",
+      "kind": "permits",
+      "task": "-"
+    }
+  ],
+  "missing_args": [],
+  "pricing": {
+    "models": [
+      {
+        "input_per_million": null,
+        "model": "ollama/qwen3.5:4b",
+        "output_per_million": null
+      }
+    ],
+    "snapshot": {
+      "as_of": "2026-07-07",
+      "providers": 10,
+      "rules": 606,
+      "source": "https://models.dev/api.json",
+      "source_sha256_16": "d31a39603aa5419d"
+    }
+  },
+  "report_version": 1,
+  "requirements": {
+    "env_defined": [],
+    "env_reads": [],
+    "models": [
+      {
+        "model": "ollama/qwen3.5:4b",
+        "tasks": [
+          "think"
+        ]
+      }
+    ],
+    "secrets": [],
+    "vars_required": []
+  },
+  "schema_findings": [],
+  "schema_lints": [],
+  "secret_egresses": [],
+  "secret_leaks": [],
+  "unknown_args": [],
+  "unknown_tools": [],
+  "waves": [
+    [
+      0
+    ],
+    [
+      1
+    ],
+    [
+      2
+    ]
+  ]
+}

@@ -1,0 +1,138 @@
+# SPDX-License-Identifier: Apache-2.0
+name: 'Nika — plan with receipts'
+description: >-
+  Static pre-flight for .nika.yaml AI workflows: nika check verdict, honest
+  cost floor (never a fake zero), required models/secrets, egress statics,
+  the DAG — as a sticky PR comment and step summary. Check-only and
+  zero-secret by default; the offline mock test lane is opt-in;
+  execution is not this action's job.
+author: 'SuperNovae Studio'
+branding:
+  icon: 'check-circle'
+  color: 'purple'
+
+inputs:
+  workflow:
+    description: 'Path to the .nika.yaml workflow file to check'
+    required: true
+  mode:
+    description: >-
+      check = static pre-flight only (default, zero secrets, safe on any
+      event) · test = check + `nika test` when a <file>.golden.json exists
+      (offline mock provider, still zero secrets)
+    required: false
+    default: 'check'
+  comment:
+    description: >-
+      Post/refresh the sticky PR comment (needs pull-requests:write; on
+      fork PRs the default token is read-only, so the body lands in the
+      step summary instead — never grant pull_request_target for this)
+    required: false
+    default: 'true'
+  engine-version:
+    description: 'nika release to install (SHA256SUMS-verified download)'
+    required: false
+    default: '0.98.0'
+  native-strict:
+    description: 'Fail when native-first hints remain (nika check --native-strict)'
+    required: false
+    default: 'false'
+  github-token:
+    description: 'Token for the comment upsert (defaults to github.token)'
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  check-exit:
+    description: 'Exit code of nika check (0 clean · 2 findings)'
+    value: ${{ steps.check.outputs.exit }}
+  comment-file:
+    description: 'Path to the rendered markdown body'
+    value: ${{ steps.render.outputs.file }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install nika (checksum-verified)
+      shell: bash
+      run: bash "${GITHUB_ACTION_PATH}/scripts/install_nika.sh" "${{ inputs.engine-version }}"
+
+    - name: nika check (static pre-flight · no execution · no secrets)
+      id: check
+      shell: bash
+      env:
+        WORKFLOW: ${{ inputs.workflow }}
+        NATIVE_STRICT: ${{ inputs.native-strict }}
+      run: |
+        set -uo pipefail
+        flags=(--json)
+        [ "${NATIVE_STRICT}" = "true" ] && flags+=(--native-strict)
+        set +e
+        nika check "${WORKFLOW}" "${flags[@]}" > "${RUNNER_TEMP}/check.json" 2> "${RUNNER_TEMP}/check.stderr"
+        code=$?
+        set -e
+        echo "exit=${code}" >> "${GITHUB_OUTPUT}"
+        # best-effort DAG (mermaid renders natively in GitHub comments)
+        nika graph "${WORKFLOW}" --format mermaid > "${RUNNER_TEMP}/graph.mmd" 2>/dev/null || true
+        echo "nika check exited ${code}"
+
+    - name: nika test (offline mock golden · opt-in lane)
+      id: golden
+      if: ${{ inputs.mode == 'test' }}
+      shell: bash
+      env:
+        WORKFLOW: ${{ inputs.workflow }}
+      run: |
+        set -euo pipefail
+        if [ -f "${WORKFLOW%.nika.yaml}.golden.json" ] || [ -f "${WORKFLOW}.golden.json" ]; then
+          nika test "${WORKFLOW}"
+          echo "verdict=golden test passed (mock provider · offline)" >> "${GITHUB_OUTPUT}"
+        else
+          echo "verdict=no golden file — test lane skipped" >> "${GITHUB_OUTPUT}"
+          echo "no <file>.golden.json next to ${WORKFLOW} — skipping (create one with: nika test ${WORKFLOW} --update)"
+        fi
+
+    - name: Render the plan-with-receipts body
+      id: render
+      shell: bash
+      env:
+        WORKFLOW: ${{ inputs.workflow }}
+        ENGINE_VERSION: ${{ inputs.engine-version }}
+        TRACE_VERDICT: ${{ steps.golden.outputs.verdict || '' }}
+      run: |
+        set -euo pipefail
+        python3 "${GITHUB_ACTION_PATH}/scripts/render_comment.py" \
+          --check-json "${RUNNER_TEMP}/check.json" \
+          --check-exit "${{ steps.check.outputs.exit }}" \
+          --workflow "${WORKFLOW}" \
+          --mermaid "${RUNNER_TEMP}/graph.mmd" \
+          --trace-verdict "${TRACE_VERDICT}" \
+          --engine-version "${ENGINE_VERSION}" \
+          --out "${RUNNER_TEMP}/comment.md"
+        echo "file=${RUNNER_TEMP}/comment.md" >> "${GITHUB_OUTPUT}"
+        cat "${RUNNER_TEMP}/comment.md" >> "${GITHUB_STEP_SUMMARY}"
+
+    - name: Sticky PR comment (upsert by marker · same-repo PRs)
+      if: ${{ inputs.comment == 'true' && github.event_name == 'pull_request' }}
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        WORKFLOW: ${{ inputs.workflow }}
+      run: |
+        set -euo pipefail
+        # fork PRs carry a read-only token: degrade to the step summary
+        # (already written) instead of failing the job on a 403
+        bash "${GITHUB_ACTION_PATH}/scripts/post_comment.sh" \
+          "${RUNNER_TEMP}/comment.md" \
+          "<!-- nika-action:v1:${WORKFLOW} -->" \
+          || echo "::notice::comment skipped (read-only token — body is in the step summary)"
+
+    - name: Gate on the check verdict
+      shell: bash
+      run: |
+        code="${{ steps.check.outputs.exit }}"
+        if [ "${code}" != "0" ]; then
+          echo "::error::nika check found problems (exit ${code}) — see the comment/summary"
+          exit "${code}"
+        fi
+        echo "check clean ✅"

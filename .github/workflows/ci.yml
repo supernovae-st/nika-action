@@ -1,0 +1,52 @@
+name: ci
+
+# The action's own proof: (1) the renderer's unit tests run against REAL
+# captured fixtures (clean · broken-JSON · parse-fatal non-JSON), (2) the
+# composite action executes end-to-end on this very repo — install
+# (SHA256SUMS-verified) → check → render → step summary. No user-controlled
+# input reaches the shell (the only expression consumed is a step outcome,
+# a runner-controlled enum).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    name: renderer unit tests (fixtures)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 -m unittest scripts.test_render_comment -v
+
+  e2e:
+    name: the action runs itself (check lane)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Clean workflow → exit 0
+        uses: ./
+        with:
+          workflow: fixtures/flow.nika.yaml
+          comment: 'false'
+      - name: Broken workflow → exit 2 (expected failure)
+        id: broken
+        continue-on-error: true
+        uses: ./
+        with:
+          workflow: fixtures/broken.nika.yaml
+          comment: 'false'
+      - name: The broken lane MUST have failed
+        run: |
+          if [ "${{ steps.broken.outcome }}" != "failure" ]; then
+            echo "::error::broken fixture did not fail the gate"
+            exit 1
+          fi
+          echo "gate semantics proven: clean passes, findings fail"

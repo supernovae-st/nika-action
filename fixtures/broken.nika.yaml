@@ -1,0 +1,13 @@
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+nika: v1
+workflow: broken-probe
+tasks:
+  - id: gather
+    invoke:
+      tool: nika:read
+      args: { path: ./in.txt }
+  - id: use_ghost
+    depends_on: [gather]
+    infer:
+      model: ollama/qwen3.5:4b
+      prompt: "Summarize ${{ tasks.ghost.output }}"

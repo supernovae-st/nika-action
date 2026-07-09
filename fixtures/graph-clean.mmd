@@ -1,0 +1,6 @@
+graph TD
+  gather["gather · invoke · nika:read"]
+  think["think · infer · ollama/qwen3.5:4b"]
+  persist["persist · invoke · nika:write"]
+  gather --> think
+  think --> persist

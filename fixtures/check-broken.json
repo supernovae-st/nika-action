@@ -1,0 +1,140 @@
+{
+  "analysis": null,
+  "capability_escapes": [],
+  "certificate": {
+    "derivation": [
+      {
+        "attempts": 1,
+        "deps": [],
+        "fanout": {
+          "known": 1
+        },
+        "finally_effect": 0,
+        "finally_llm": 0,
+        "finally_spend_micros": 0,
+        "main_effect": 1,
+        "main_llm": 0,
+        "main_spend_micros": 0,
+        "task": "gather"
+      },
+      {
+        "attempts": 1,
+        "deps": [
+          "gather"
+        ],
+        "fanout": {
+          "known": 1
+        },
+        "finally_effect": 0,
+        "finally_llm": 0,
+        "finally_spend_micros": 0,
+        "main_effect": 0,
+        "main_llm": 1,
+        "main_spend_micros": null,
+        "task": "use_ghost"
+      }
+    ],
+    "effect_calls": {
+      "constant": 1,
+      "terms": []
+    },
+    "llm_calls": {
+      "constant": 1,
+      "terms": []
+    },
+    "span_attempts": 2,
+    "task_attempts": {
+      "constant": 2,
+      "terms": []
+    },
+    "usd_micros": null
+  },
+  "clean": false,
+  "conformance": [
+    {
+      "code": "NIKA-VAR-001",
+      "docs_url": "https://nika.sh/errors/NIKA-VAR-001",
+      "message": "unresolved reference `tasks.ghost` in task `use_ghost`",
+      "severity": "error",
+      "span": {
+        "end": 295,
+        "start": 295
+      }
+    }
+  ],
+  "cost": {
+    "bounded_total_usd": 0.0,
+    "has_unbounded": true,
+    "min_path_total_usd": 0.0,
+    "tasks": [
+      {
+        "attempts": 1,
+        "gated": false,
+        "iterations": 1,
+        "max_tokens": null,
+        "min_path_usd": null,
+        "model": "ollama/qwen3.5:4b",
+        "task": "use_ghost",
+        "unbounded_reason": "NoTokenLimit",
+        "usd": null
+      }
+    ]
+  },
+  "gate_findings": [],
+  "hints": [
+    {
+      "advice": "declare `max_tokens` on `use_ghost` — the cost report becomes a hard ceiling instead of UNBOUNDED",
+      "kind": "cost",
+      "task": "use_ghost"
+    },
+    {
+      "advice": "no task or output consumes `tasks.use_ghost.output` — every token this infer spends is unread; consume it or remove the task",
+      "kind": "dead-spend",
+      "task": "use_ghost"
+    },
+    {
+      "advice": "no `permits:` boundary declared — run `nika check --infer-permits` to generate the tightest one (default-deny once present)",
+      "kind": "permits",
+      "task": "-"
+    }
+  ],
+  "missing_args": [],
+  "pricing": {
+    "models": [
+      {
+        "input_per_million": null,
+        "model": "ollama/qwen3.5:4b",
+        "output_per_million": null
+      }
+    ],
+    "snapshot": {
+      "as_of": "2026-07-07",
+      "providers": 10,
+      "rules": 606,
+      "source": "https://models.dev/api.json",
+      "source_sha256_16": "d31a39603aa5419d"
+    }
+  },
+  "report_version": 1,
+  "requirements": {
+    "env_defined": [],
+    "env_reads": [],
+    "models": [
+      {
+        "model": "ollama/qwen3.5:4b",
+        "tasks": [
+          "use_ghost"
+        ]
+      }
+    ],
+    "secrets": [],
+    "vars_required": []
+  },
+  "schema_findings": [],
+  "schema_lints": [],
+  "secret_egresses": [],
+  "secret_leaks": [],
+  "unknown_args": [],
+  "unknown_tools": [],
+  "waves": []
+}

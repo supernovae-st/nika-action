@@ -18,8 +18,11 @@ if [ -z "${PR_NUMBER}" ]; then
 fi
 
 REPO="${GITHUB_REPOSITORY}"
-EXISTING_ID="$(gh api "repos/${REPO}/issues/${PR_NUMBER}/comments" \
-  --paginate --jq ".[] | select(.body | contains(\"${MARKER}\")) | .id" | head -1)"
+# collect ids into a variable first — `gh --paginate | head -1` can die on
+# SIGPIPE (exit 141) under pipefail when head closes the pipe mid-page
+ALL_IDS="$(gh api "repos/${REPO}/issues/${PR_NUMBER}/comments" \
+  --paginate --jq ".[] | select(.body | contains(\"${MARKER}\")) | .id")"
+EXISTING_ID="$(printf '%s\n' "${ALL_IDS}" | head -1)"
 
 if [ -n "${EXISTING_ID}" ]; then
   gh api --method PATCH "repos/${REPO}/issues/comments/${EXISTING_ID}" \

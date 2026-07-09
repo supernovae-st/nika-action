@@ -46,6 +46,12 @@ outputs:
   check-exit:
     description: 'Exit code of nika check (0 clean · 2 findings)'
     value: ${{ steps.check.outputs.exit }}
+  clean:
+    description: 'true when the check came back clean (chainable in if:)'
+    value: ${{ steps.check.outputs.clean }}
+  cost-floor:
+    description: 'Static cost floor in USD (empty when unavailable — never a fake 0)'
+    value: ${{ steps.check.outputs.cost-floor }}
   comment-file:
     description: 'Path to the rendered markdown body'
     value: ${{ steps.render.outputs.file }}
@@ -66,12 +72,27 @@ runs:
       run: |
         set -uo pipefail
         flags=(--json)
-        [ "${NATIVE_STRICT}" = "true" ] && flags+=(--native-strict)
+        if [ "${NATIVE_STRICT}" = "true" ]; then
+          flags+=(--native-strict)
+        fi
         set +e
         nika check "${WORKFLOW}" "${flags[@]}" > "${RUNNER_TEMP}/check.json" 2> "${RUNNER_TEMP}/check.stderr"
         code=$?
         set -e
         echo "exit=${code}" >> "${GITHUB_OUTPUT}"
+        # machine outputs for downstream steps (defensive: json may be the
+        # parse-fatal non-JSON path — then both stay empty)
+        python3 - "${RUNNER_TEMP}/check.json" >> "${GITHUB_OUTPUT}" <<'EOF' || true
+        import json, sys
+        try:
+            d = json.load(open(sys.argv[1]))
+            print(f"clean={'true' if d.get('clean') else 'false'}")
+            floor = (d.get('cost') or {}).get('min_path_total_usd')
+            if floor is not None:
+                print(f"cost-floor={floor}")
+        except Exception:
+            pass
+        EOF
         # best-effort DAG (mermaid renders natively in GitHub comments)
         nika graph "${WORKFLOW}" --format mermaid > "${RUNNER_TEMP}/graph.mmd" 2>/dev/null || true
         echo "nika check exited ${code}"

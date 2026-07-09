@@ -1,0 +1,2 @@
+The quick brown fox jumps over the lazy dog.
+A fixture input for the offline golden lane.

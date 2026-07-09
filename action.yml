@@ -62,6 +62,19 @@ outputs:
 runs:
   using: 'composite'
   steps:
+    - name: Validate inputs
+      shell: bash
+      env:
+        MODE: ${{ inputs.mode }}
+      run: |
+        case "${MODE}" in
+          check|test) ;;
+          *)
+            echo "::error::unknown mode '${MODE}' — valid: check · test (execution is not this action's job)"
+            exit 1
+            ;;
+        esac
+
     - name: Install nika (checksum-verified)
       shell: bash
       run: bash "${GITHUB_ACTION_PATH}/scripts/install_nika.sh" "${{ inputs.engine-version }}"
@@ -111,11 +124,23 @@ runs:
       env:
         WORKFLOW: ${{ inputs.workflow }}
       run: |
-        set -euo pipefail
+        set -uo pipefail
+        # a red golden must NOT kill the receipt: capture the exit, let the
+        # render/comment run, gate at the end — receipts matter most when red
         if [ -f "${WORKFLOW%.nika.yaml}.golden.json" ] || [ -f "${WORKFLOW}.golden.json" ]; then
+          set +e
           nika test "${WORKFLOW}"
-          echo "verdict=golden test passed (mock provider · offline)" >> "${GITHUB_OUTPUT}"
+          code=$?
+          set -e
+          echo "exit=${code}" >> "${GITHUB_OUTPUT}"
+          if [ "${code}" = "0" ]; then
+            echo "verdict=golden test passed (mock provider · offline)" >> "${GITHUB_OUTPUT}"
+          else
+            echo "verdict=golden test FAILED (exit ${code} · mock provider · offline)" >> "${GITHUB_OUTPUT}"
+            echo "::warning::nika test failed (exit ${code}) — rendering the receipt, gating after"
+          fi
         else
+          echo "exit=0" >> "${GITHUB_OUTPUT}"
           echo "verdict=no golden file — test lane skipped" >> "${GITHUB_OUTPUT}"
           echo "no <file>.golden.json next to ${WORKFLOW} — skipping (create one with: nika test ${WORKFLOW} --update)"
         fi
@@ -155,12 +180,18 @@ runs:
           "<!-- nika-action:v1:${WORKFLOW} -->" \
           || echo "::notice::comment skipped (read-only token — body is in the step summary)"
 
-    - name: Gate on the check verdict
+    - name: Gate on the verdicts
       shell: bash
+      env:
+        CHECK_EXIT: ${{ steps.check.outputs.exit }}
+        GOLDEN_EXIT: ${{ steps.golden.outputs.exit || '0' }}
       run: |
-        code="${{ steps.check.outputs.exit }}"
-        if [ "${code}" != "0" ]; then
-          echo "::error::nika check found problems (exit ${code}) — see the comment/summary"
-          exit "${code}"
+        if [ "${CHECK_EXIT}" != "0" ]; then
+          echo "::error::nika check found problems (exit ${CHECK_EXIT}) — see the comment/summary"
+          exit "${CHECK_EXIT}"
         fi
-        echo "check clean ✅"
+        if [ "${GOLDEN_EXIT}" != "0" ]; then
+          echo "::error::golden test failed (exit ${GOLDEN_EXIT}) — see the comment/summary"
+          exit "${GOLDEN_EXIT}"
+        fi
+        echo "verdicts green ✅"

@@ -95,7 +95,11 @@ jobs:
 
 ## Outputs
 
-`check-exit` (0 clean · 2 findings) · `comment-file` (rendered markdown path).
+`check-exit` (0 clean · 2 findings) · `clean` (`true`/`false` — chainable in
+`if:`) · `cost-floor` (static floor in USD · empty when unavailable, never a
+fake 0) · `cost-unbounded` (`true` when unpriced/unbounded tasks exist — a
+0.0 floor with this true is NOT free; consume the pair, never the bare
+number) · `comment-file` (rendered markdown path).
 
 ## Links
 

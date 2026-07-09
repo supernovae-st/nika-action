@@ -50,3 +50,24 @@ jobs:
             exit 1
           fi
           echo "gate semantics proven: clean passes, findings fail"
+      - name: Test lane → golden passes offline (mock provider)
+        uses: ./
+        with:
+          workflow: fixtures/flow.nika.yaml
+          mode: test
+          comment: 'false'
+      - name: Unknown mode → refused (expected failure)
+        id: badmode
+        continue-on-error: true
+        uses: ./
+        with:
+          workflow: fixtures/flow.nika.yaml
+          mode: run
+          comment: 'false'
+      - name: The unknown mode MUST have been refused
+        run: |
+          if [ "${{ steps.badmode.outcome }}" != "failure" ]; then
+            echo "::error::unknown mode was silently accepted"
+            exit 1
+          fi
+          echo "mode validation proven: run is refused by design"

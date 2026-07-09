@@ -25,7 +25,9 @@ floor, the models and secrets it needs, its egress statics, and the DAG
 
 ```yaml
 name: nika
-on: [pull_request]
+on:
+  pull_request:
+    paths: ['**.nika.yaml']   # fire only when a workflow file changes
 permissions:
   contents: read
   pull-requests: write        # the sticky comment — drop it and the body
@@ -35,13 +37,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # pin by full commit SHA in real use (marketplace norm):
-      # uses: supernovae-st/nika-action@<sha>
-      - uses: supernovae-st/nika-action@v1
+      - uses: supernovae-st/nika-action@e90a55b5436f1d41f5dfe9b80af9970a7cca2fe7 # v1.0.2
         with:
           workflow: flows/report.nika.yaml
           mode: check           # or: test (offline mock golden lane)
 ```
+
+The pin is the full commit SHA with the release in a comment — the form
+Dependabot and Renovate bump for you. `@v1` also works and tracks the
+latest v1.x.y.
+
+No workflow yet? `nika new flows/report.nika.yaml --from chain` scaffolds
+one ([authoring in 10 minutes](https://docs.nika.sh/integrations/quickstart))
+— or start from this repo's own [`fixtures/flow.nika.yaml`](fixtures/flow.nika.yaml),
+which is what the CI checks against itself.
 
 ## What it does — and refuses to do
 
@@ -65,8 +74,8 @@ jobs:
   secrets. Same-repo PRs get the sticky comment; forks get the summary.
 - **One comment, forever**: the comment is upserted by a hidden per-file
   marker — re-pushes edit it in place, never spam the thread.
-- **Pin this action by commit SHA** (`uses: supernovae-st/nika-action@<sha>`)
-  — the marketplace norm, and what we do to nika itself inside.
+- **Pin this action by commit SHA** — demonstrated in the usage block
+  above, and what we do to nika itself inside. Full posture: [SECURITY.md](SECURITY.md).
 
 ## Honesty semantics (why "receipts")
 
@@ -100,6 +109,39 @@ jobs:
 fake 0) · `cost-unbounded` (`true` when unpriced/unbounded tasks exist — a
 0.0 floor with this true is NOT free; consume the pair, never the bare
 number) · `comment-file` (rendered markdown path).
+
+## More than one workflow file
+
+`workflow` takes one path; fan out with a matrix — one sticky comment per
+file, upserted independently:
+
+```yaml
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        flow: [flows/report.nika.yaml, flows/triage.nika.yaml]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supernovae-st/nika-action@v1
+        with:
+          workflow: ${{ matrix.flow }}
+```
+
+## FAQ
+
+**Does this run my workflow?** No — and there is deliberately no mode that
+does. `check` is static; `test` runs the offline mock provider. Execution
+belongs in your own steps, behind your own review.
+
+**Why did the comment land in the step summary instead?** Fork PR — the
+default token is read-only there. That's the designed degradation, not a
+bug; never grant `pull_request_target` to force the comment.
+
+**The cost line says `unpriced` — is that an error?** No: a task without a
+list rate renders as unpriced with its reason, because a model the engine
+cannot price does not become free by omission.
 
 ## Links
 

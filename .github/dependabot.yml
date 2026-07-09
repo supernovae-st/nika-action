@@ -1,0 +1,9 @@
+# Keep the CI's own action pins fresh — the composite has zero runtime
+# dependencies (bash + python3 stdlib), so github-actions is the only
+# ecosystem with anything to bump.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

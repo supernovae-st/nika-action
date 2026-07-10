@@ -109,6 +109,14 @@ def sec_requirements(report: dict) -> str:
     parts = []
     if models:
         parts.append("models: " + " · ".join(f"`{m}`" for m in models[:8]))
+        # 0.99+ additive field: every model resolves in the installed binary.
+        # Absent (0.98 reports) → say nothing rather than guess.
+        resolve = report.get("models_resolve")
+        if resolve is True:
+            parts.append("all resolve in this engine")
+        elif resolve is False:
+            parts.append("⚠ **some models do not resolve in this engine** — "
+                         "the check named them; `nika doctor` lists what runs")
     parts.append("secrets: " + (" · ".join(f"`{s}`" for s in secrets[:8]) if secrets else "none"))
     if env:
         parts.append("env reads: " + " · ".join(f"`{e}`" for e in env[:8]))

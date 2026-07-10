@@ -32,7 +32,7 @@ inputs:
   engine-version:
     description: 'nika release to install (SHA256SUMS-verified download)'
     required: false
-    default: '0.98.0'
+    default: '0.99.0'
   native-strict:
     description: 'Fail when native-first hints remain (nika check --native-strict)'
     required: false

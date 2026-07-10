@@ -107,3 +107,27 @@ class Sections(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class ModelsResolve(unittest.TestCase):
+    """0.99 additive field: present-true, present-false, absent (0.98)."""
+
+    def _base(self):
+        return load("check-clean.json")
+
+    def test_absent_says_nothing(self):
+        body = rc.render(self._base(), 0, "f.nika.yaml", "", "", "0.98.0")
+        self.assertNotIn("resolve in this engine", body)
+
+    def test_true_affirms(self):
+        r = self._base()
+        r["models_resolve"] = True
+        body = rc.render(r, 0, "f.nika.yaml", "", "", "0.99.0")
+        self.assertIn("all resolve in this engine", body)
+
+    def test_false_warns_without_inventing_names(self):
+        r = self._base()
+        r["models_resolve"] = False
+        body = rc.render(r, 0, "f.nika.yaml", "", "", "0.99.0")
+        self.assertIn("do not resolve in this engine", body)
+        self.assertIn("nika doctor", body)
+

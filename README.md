@@ -23,6 +23,13 @@ floor, the models and secrets it needs, its egress statics, and the DAG
 > 🌊 **schedule**: 3 wave(s), max width 1
 > 🗺 DAG *(collapsible mermaid)*
 
+This is the same audit you get locally — a broken DAG is a **named finding
+with its fix**, before any token is spent:
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/supernovae-st/nika/main/media/gifs/static-check-fix.optimized.gif" alt="nika check catches a missing depends_on and a typo'd task reference with the exact three-line fix, then the same audit passes clean" width="820">
+</p>
+
 ```yaml
 name: nika
 on:

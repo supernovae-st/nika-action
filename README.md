@@ -95,7 +95,7 @@ which is what the CI checks against itself.
 
 | input | default | notes |
 |---|---|---|
-| `workflow` |: | path to the `.nika.yaml` (one file; matrix over paths for more) |
+| `workflow` | required | path to the `.nika.yaml` (one file; matrix over paths for more) |
 | `mode` | `check` | `check` \| `test` |
 | `comment` | `true` | sticky PR comment (needs `pull-requests: write`) |
 | `engine-version` | `0.99.0` | the nika release to install (checksum-verified) |

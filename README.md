@@ -23,7 +23,7 @@ floor, the models and secrets it needs, its egress statics, and the DAG
 > 🌊 **schedule**: 3 wave(s), max width 1
 > 🗺 DAG *(collapsible mermaid)*
 
-This is the same audit you get locally — a broken DAG is a **named finding
+This is the same audit you get locally · a broken DAG is a **named finding
 with its fix**, before any token is spent:
 
 <p align="center">

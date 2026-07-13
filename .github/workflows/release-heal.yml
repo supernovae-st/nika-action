@@ -1,0 +1,56 @@
+name: release-heal
+
+# The manual roll dies (done by hand for 0.101 AND 0.102 — twice in one
+# day): when the engine's latest release moves past the served default,
+# this heals the WHOLE distribution — bump action.yml + README row,
+# tag the next v1.0.N, move the floating v1 (what users consume), cut
+# the release, then re-pin the README's SHA example. Guarded upstream:
+# the release exists (SHA256SUMS fetch is the proof the train was green).
+#
+# SECURITY: no github.event data reaches the shell; the only external
+# value is the release tag, validated against ^v[0-9.]+$.
+
+on:
+  schedule:
+    - cron: '29 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  heal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: The served default follows the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag="$(gh release view --repo supernovae-st/nika --json tagName --jq .tagName)"
+          [[ "$tag" =~ ^v[0-9][0-9.]*$ ]] || { echo "::error::unexpected tag: $tag"; exit 1; }
+          ver="${tag#v}"
+          cur="$(sed -n "s/.*default: '\([0-9][0-9.]*\)'.*/\1/p" action.yml | head -1)"
+          if [ "$cur" = "$ver" ]; then echo "default already $ver — nothing to heal"; exit 0; fi
+          curl -fsSL "https://github.com/supernovae-st/nika/releases/download/${tag}/SHA256SUMS" >/dev/null
+          perl -pi -e "s/default: '[0-9][0-9.]*'/default: '${ver}'/" action.yml
+          perl -pi -e "s/\| \`engine-version\` \| \`[0-9][0-9.]*\` \|/| \`engine-version\` | \`${ver}\` |/" README.md
+          git config user.name "nika-release[bot]"
+          git config user.email "nika@supernovae.studio"
+          git add action.yml README.md
+          git commit -m "chore: the default engine follows the release — ${ver} (release-heal)"
+          git push
+          oid="$(git rev-parse HEAD)"
+          last="$(gh api repos/${GITHUB_REPOSITORY}/tags --jq '[.[].name | select(test("^v1\\.0\\.[0-9]+$"))] | map(split(".")[2] | tonumber) | max')"
+          next="v1.0.$((last + 1))"
+          gh api "repos/${GITHUB_REPOSITORY}/git/refs" -f ref="refs/tags/${next}" -f sha="$oid" >/dev/null
+          gh api -X PATCH "repos/${GITHUB_REPOSITORY}/git/refs/tags/v1" -f sha="$oid" -F force=true >/dev/null
+          gh release create "$next" --latest --title "$next — the default engine follows ${tag}" \
+            --notes "Default \`engine-version\` → ${ver} (release-heal). \`v1\` points here."
+          perl -pi -e "s/nika-action\@[a-f0-9]{40} # v1\.0\.[0-9]+/nika-action\@${oid} # ${next}/" README.md
+          git add README.md
+          git commit -m "docs(readme): the SHA-pin example points at ${next} (release-heal)"
+          git push
+          echo "healed to ${ver} · ${next} · v1 moved"

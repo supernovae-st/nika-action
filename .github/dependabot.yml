@@ -1,9 +1,18 @@
 # Keep the CI's own action pins fresh — the composite has zero runtime
 # dependencies (bash + python3 stdlib), so github-actions is the only
 # ecosystem with anything to bump.
+#
+# Grouped on purpose: a split-pair action (codeql-action/init +
+# codeql-action/analyze must move in lockstep) landing as two separate
+# PRs drifts out of sync between merges. One grouped PR moves every pin
+# atomically (lesson: nika-spec 2026-07-19).
 version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    groups:
+      github-actions:
+        patterns:
+          - "*"

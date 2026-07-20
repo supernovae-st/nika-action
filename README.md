@@ -105,7 +105,7 @@ which is what the CI checks against itself.
 | `workflow` | required | path to the `.nika.yaml` (one file; matrix over paths for more) |
 | `mode` | `check` | `check` \| `test` |
 | `comment` | `true` | sticky PR comment (needs `pull-requests: write`) |
-| `engine-version` | `0.104.0` | the nika release to install (checksum-verified) |
+| `engine-version` | `0.105.0` | the nika release to install (checksum-verified) |
 | `native-strict` | `false` | fail while native-first hints remain |
 | `github-token` | `github.token` | override for the comment upsert |
 

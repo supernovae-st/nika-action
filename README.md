@@ -44,7 +44,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: supernovae-st/nika-action@eaf7d5e490c29652ad1a383fd9b977530ae481a1 # v1.0.8
+      - uses: supernovae-st/nika-action@8183352eb0fd2d37ed27950bae62b31eb9ce003b # v1.0.9
         with:
           workflow: flows/report.nika.yaml
           mode: check           # or: test (offline mock golden lane)

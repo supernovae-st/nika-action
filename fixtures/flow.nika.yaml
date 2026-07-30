@@ -4,42 +4,63 @@
 # TEMPLATE · chain · gather facts → one model step → persist.
 # The default shape for « take real data, produce words, save them ».
 #
+# This file is also the action's own clean-lane fixture: CI runs the action
+# on it and requires exit 0. It therefore has to be current, not merely
+# plausible — a template that fails the check it demonstrates teaches the
+# wrong thing twice.
+#
 # Instantiate (agents · deterministic) ·
 #   1. Copy this file · rename per the job (kebab-case).
 #   2. Fill every `# SLOT:` line · delete slot comments when filled.
-#   3. Validate · `nika check <file>` (or conformance/runner.py validate).
-#   4. Repair using the error's fix line · re-check until valid.
-# Rules the validator enforces · one verb per task · snake_case ids ·
-# every ${{ tasks.X }} reference REQUIRES depends_on: [X] (NIKA-DAG-003).
+#   3. Validate · `nika check <file>`.
+#   4. Repair using the error's fix line · re-check until exit 0.
+#
+# Rules the checker enforces · one verb per task · snake_case ids · a task
+# that reads another's output BINDS it in `with:` (the binding IS the edge:
+# `depends_on:` died in W2) · fixed values live in `const:`, typed
+# parameters in `inputs:` (`vars:` is dead · NIKA-VALUES-001).
+
 nika: v1
-workflow: chain-template            # SLOT: kebab-case workflow id
-description: "gather → think → persist"   # SLOT: one honest sentence
+workflow:
+  id: chain-template                  # SLOT: kebab-case workflow id
+  description: "gather → think → persist"   # SLOT: one honest sentence
 
-model: ollama/qwen3.5:4b           # SLOT: provider/model · local · zero key
+model: ollama/qwen3.5:4b              # SLOT: provider/model · local · zero key
 
-vars:
-  source: "fixtures/input.txt"      # SLOT: your inputs · typed where required
+const:
+  source: "fixtures/input.txt"        # SLOT: a fixed value · a typed parameter goes in inputs:
+
+# The blast radius, declared in the file: two tools, one read path, one
+# write path, no shells. Everything else is refused before it runs.
+permits:
+  tools: ["nika:read", "nika:write"]
+  fs:    { read: ["fixtures/**"], write: ["./output.md"] }
+  exec:  false
 
 tasks:
-  - id: gather
-    invoke:                         # SLOT: the fact source · nika:read / nika:fetch / exec
+  gather:
+    invoke:                           # SLOT: the fact source · nika:read / nika:fetch
       tool: "nika:read"
-      args: { path: "${{ vars.source }}" }
+      args: { path: "${{ const.source }}" }
 
-  - id: think
-    depends_on: [gather]
+  think:
+    with:
+      facts: ${{ tasks.gather.output }}    # the binding IS the edge
     infer:
       prompt: |
-        # SLOT: the one model job · interpolate ${{ tasks.gather.output }}
-        Summarize · ${{ tasks.gather.output }}
+        # SLOT: the one model job
+        Summarize · ${{ with.facts }}
 
-  - id: persist
-    depends_on: [think]
+  persist:
+    with:
+      brief: ${{ tasks.think.output }}
     invoke:
       tool: "nika:write"
       args:
-        path: "./output.md"         # SLOT: destination
-        content: "${{ tasks.think.output }}"   # ALWAYS pass content · a write without it writes nothing
+        path: "./output.md"           # SLOT: destination
+        content: "${{ with.brief }}"  # ALWAYS pass content · a write without it writes nothing
 
 outputs:
-  result: ${{ tasks.think.output }}  # SLOT: the callable contract
+  result:
+    value: ${{ tasks.think.output }}  # SLOT: the callable contract
+    type: string

@@ -1,13 +1,36 @@
-# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+# SPDX-License-Identifier: Apache-2.0
+#
+# The action's RED lane. CI requires this file to fail, and it has to fail
+# for the reason it exists: `use_ghost` reads a task that is not in the DAG.
+#
+# It used to fail at NIKA-PARSE-020 instead, because the envelope was written
+# before `workflow:` became an object. The lane still went red, so the test
+# still "passed" — while proving only that the action refuses malformed YAML,
+# never that it catches a dangling reference. A fixture that fails for the
+# wrong reason is a test that cannot fail for the right one.
+#
+# If you modernise this file, keep the ghost. That is the whole point.
+
 nika: v1
-workflow: broken-probe
+workflow:
+  id: broken-probe
+  description: "the red lane · a reference to a task that does not exist"
+
+model: ollama/qwen3.5:4b
+
+permits:
+  tools: ["nika:read"]
+  fs:    { read: ["./in.txt"] }
+  exec:  false
+
 tasks:
-  - id: gather
+  gather:
     invoke:
-      tool: nika:read
-      args: { path: ./in.txt }
-  - id: use_ghost
-    depends_on: [gather]
+      tool: "nika:read"
+      args: { path: "./in.txt" }
+
+  use_ghost:
+    with:
+      facts: ${{ tasks.ghost.output }}   # ← THE defect · `ghost` is not a task
     infer:
-      model: ollama/qwen3.5:4b
-      prompt: "Summarize ${{ tasks.ghost.output }}"
+      prompt: "Summarize ${{ with.facts }}"

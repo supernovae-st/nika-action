@@ -3,9 +3,11 @@ name: ci
 # The action's own proof: (1) the renderer's unit tests run against REAL
 # captured fixtures (clean · broken-JSON · parse-fatal non-JSON), (2) the
 # composite action executes end-to-end on this very repo — install
-# (SHA256SUMS-verified) → check → render → step summary. No user-controlled
-# input reaches the shell (the only expression consumed is a step outcome,
-# a runner-controlled enum).
+# (SHA256SUMS-verified) → check → render → step summary, (3) a smoke lane
+# probes every subcommand this repo teaches against the served release
+# binary — a verb the engine dropped dies HERE, not in a consumer's run.
+# No user-controlled input reaches the shell (the only expression consumed
+# is a step outcome, a runner-controlled enum).
 
 on:
   push:
@@ -24,6 +26,30 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: python3 -m unittest scripts.test_render_comment -v
+
+  smoke:
+    name: taught subcommands answer in the served engine
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install the served default (SHA256SUMS-verified)
+        run: |
+          set -euo pipefail
+          # the same read release-heal uses: the probe always follows action.yml
+          ver="$(sed -n "s/.*default: '\([0-9][0-9.]*\)'.*/\1/p" action.yml | head -1)"
+          bash scripts/install_nika.sh "${ver}"
+      - name: Probe every subcommand this repo teaches
+        run: |
+          set -euo pipefail
+          # action.yml runs check · test · inspect — the README also teaches new
+          for sub in check test inspect new; do
+            if ! nika "${sub}" --help > /dev/null; then
+              echo "::error::taught subcommand died: nika ${sub} --help — this repo teaches a verb the served engine no longer ships"
+              exit 1
+            fi
+            echo "nika ${sub} --help · rc=0"
+          done
 
   e2e:
     name: the action runs itself (check lane)

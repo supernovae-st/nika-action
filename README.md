@@ -54,7 +54,7 @@ The pin is the full commit SHA with the release in a comment: the form
 Dependabot and Renovate bump for you. `@v1` also works and tracks the
 latest v1.x.y.
 
-No workflow yet? `nika new flows/report.nika.yaml --from chain` scaffolds
+No workflow yet? `nika new chain flows/report.nika.yaml` scaffolds
 one ([authoring in 10 minutes](https://docs.nika.sh/integrations/quickstart))
 - or start from this repo's own [`fixtures/flow.nika.yaml`](fixtures/flow.nika.yaml),
 which is what the CI checks against itself.
@@ -63,7 +63,7 @@ which is what the CI checks against itself.
 
 | lane | what runs | secrets |
 |---|---|---|
-| `check` (default) | `nika check --json` + `nika graph`: static analysis, **nothing executes** | **none** |
+| `check` (default) | `nika check --json` + `nika inspect`: static analysis, **nothing executes** | **none** |
 | `test` | + `nika test` against `<file>.golden.json`: the **mock provider**, offline, deterministic | **none** |
 | ~~run~~ | **not provided.** Executing workflows (which can carry `exec:` shell steps) under a CI token is a decision this action refuses to make for you. Run lanes belong in your own workflow, behind your own review, never on fork-origin events | none |
 

@@ -203,7 +203,7 @@ def main() -> int:
                     help="path to the captured `nika check --json` stdout")
     ap.add_argument("--check-exit", type=int, required=True)
     ap.add_argument("--workflow", required=True, help="workflow path (display + marker)")
-    ap.add_argument("--mermaid", default="", help="path to `nika graph --format mermaid` output")
+    ap.add_argument("--mermaid", default="", help="path to `nika inspect --format mermaid` output")
     ap.add_argument("--trace-verdict", default="", help="one-line trace verify summary")
     ap.add_argument("--engine-version", default="unknown")
     ap.add_argument("--out", required=True)

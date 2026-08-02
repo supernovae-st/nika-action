@@ -113,8 +113,14 @@ runs:
         except Exception:
             pass
         EOF
-        # best-effort DAG (mermaid renders natively in GitHub comments)
-        nika graph "${WORKFLOW}" --format mermaid > "${RUNNER_TEMP}/graph.mmd" 2>/dev/null || true
+        # best-effort DAG (mermaid renders natively in GitHub comments) —
+        # non-fatal for the consumer, but never a silent death: when the
+        # projector fails, the receipt says so out loud
+        if ! nika inspect "${WORKFLOW}" --format mermaid > "${RUNNER_TEMP}/graph.mmd" 2> "${RUNNER_TEMP}/graph.stderr"; then
+          reason="$(head -c 300 "${RUNNER_TEMP}/graph.stderr" | tr '\n' ' ')"
+          echo "::warning::DAG preview unavailable — nika inspect --format mermaid failed: ${reason}"
+          : > "${RUNNER_TEMP}/graph.mmd"
+        fi
         echo "nika check exited ${code}"
 
     - name: nika test (offline mock golden · opt-in lane)

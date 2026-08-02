@@ -1,13 +1,16 @@
 # SPDX-License-Identifier: Apache-2.0
 # yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
 #
-# TEMPLATE · chain · gather facts → one model step → persist.
-# The default shape for « take real data, produce words, save them ».
+# The action's own clean-lane fixture · gather facts → one model step.
+# Effect-free BY DESIGN: the golden lane runs `nika test` (the mock plane
+# simulates the model, not effects — a `nika:write` there is refused,
+# NIKA-452), so the fixture ends at the typed output. The full
+# gather→think→persist shape lives in the engine's `chain` skeleton
+# (`nika new chain <file>`).
 #
-# This file is also the action's own clean-lane fixture: CI runs the action
-# on it and requires exit 0. It therefore has to be current, not merely
-# plausible — a template that fails the check it demonstrates teaches the
-# wrong thing twice.
+# CI runs the action on this file and requires exit 0. It therefore has
+# to be current, not merely plausible — a fixture that fails the check it
+# demonstrates teaches the wrong thing twice.
 #
 # Instantiate (agents · deterministic) ·
 #   1. Copy this file · rename per the job (kebab-case).
@@ -23,18 +26,18 @@
 nika: v1
 workflow:
   id: chain-template                  # SLOT: kebab-case workflow id
-  description: "gather → think → persist"   # SLOT: one honest sentence
+  description: "gather → think"       # SLOT: one honest sentence
 
 model: ollama/qwen3.5:4b              # SLOT: provider/model · local · zero key
 
 const:
   source: "fixtures/input.txt"        # SLOT: a fixed value · a typed parameter goes in inputs:
 
-# The blast radius, declared in the file: two tools, one read path, one
-# write path, no shells. Everything else is refused before it runs.
+# The blast radius, declared in the file: one tool, one read path, no
+# shells. Everything else is refused before it runs.
 permits:
-  tools: ["nika:read", "nika:write"]
-  fs:    { read: ["fixtures/**"], write: ["./output.md"] }
+  tools: ["nika:read"]
+  fs:    { read: ["fixtures/**"] }
   exec:  false
 
 tasks:
@@ -51,14 +54,6 @@ tasks:
         # SLOT: the one model job
         Summarize · ${{ with.facts }}
 
-  persist:
-    with:
-      brief: ${{ tasks.think.output }}
-    invoke:
-      tool: "nika:write"
-      args:
-        path: "./output.md"           # SLOT: destination
-        content: "${{ with.brief }}"  # ALWAYS pass content · a write without it writes nothing
 
 outputs:
   result:

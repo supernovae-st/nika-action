@@ -43,7 +43,7 @@ jobs:
           git commit -m "chore: the default engine follows the release — ${ver} (release-heal)"
           git push
           oid="$(git rev-parse HEAD)"
-          last="$(gh api repos/${GITHUB_REPOSITORY}/tags --jq '[.[].name | select(test("^v1\\.0\\.[0-9]+$"))] | map(split(".")[2] | tonumber) | max')"
+          last="$(gh api "repos/${GITHUB_REPOSITORY}/tags" --jq '[.[].name | select(test("^v1\\.0\\.[0-9]+$"))] | map(split(".")[2] | tonumber) | max')"
           next="v1.0.$((last + 1))"
           gh api "repos/${GITHUB_REPOSITORY}/git/refs" -f ref="refs/tags/${next}" -f sha="$oid" >/dev/null
           gh api -X PATCH "repos/${GITHUB_REPOSITORY}/git/refs/tags/v1" -f sha="$oid" -F force=true >/dev/null

@@ -23,10 +23,8 @@
 # `depends_on:` died in W2) · fixed values live in `const:`, typed
 # parameters in `inputs:` (`vars:` is dead · NIKA-VALUES-001).
 
-nika: v1
-workflow:
-  id: chain-template                  # SLOT: kebab-case workflow id
-  description: "gather → think"       # SLOT: one honest sentence
+# gather → think
+nika: chain-template                  # SLOT: kebab-case workflow id
 
 model: ollama/qwen3.5:4b              # SLOT: provider/model · local · zero key
 
@@ -56,6 +54,4 @@ tasks:
 
 
 outputs:
-  result:
-    value: ${{ tasks.think.output }}  # SLOT: the callable contract
-    type: string
+  result: ${{ tasks.think.output }}  # SLOT: the callable contract

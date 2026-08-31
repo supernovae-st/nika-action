@@ -16,12 +16,17 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: write
   contents: write
+
+concurrency:
+  group: release-heal
+  cancel-in-progress: false
 
 jobs:
   heal:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: The served default follows the release
@@ -43,6 +48,66 @@ jobs:
           git commit -m "chore: the default engine follows the release — ${ver} (release-heal)"
           git push
           oid="$(git rev-parse HEAD)"
+          remote_oid="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq .object.sha)"
+          if [ "$remote_oid" != "$oid" ]; then
+            echo "::error::main moved before CI dispatch: expected ${oid}, found ${remote_oid}"
+            exit 1
+          fi
+
+          # A push made with GITHUB_TOKEN does not trigger push workflows.
+          # Dispatch CI explicitly, then accept only a run bound to THIS
+          # commit. If main moves before dispatch, the resulting run has a
+          # different head_sha and this bounded loop fails closed.
+          gh api -X POST \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/dispatches" \
+            -f ref=main
+          run_id=""
+          ci_passed=false
+          for attempt in $(seq 1 180); do
+            if [ -z "$run_id" ]; then
+              run_id="$(
+                gh api --method GET \
+                  "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs" \
+                  -f event=workflow_dispatch -f per_page=100 |
+                  jq -r --arg oid "$oid" '
+                    [.workflow_runs[] |
+                      select(.event == "workflow_dispatch" and
+                             .head_sha == $oid)] |
+                    sort_by(.created_at) | last | .id // empty
+                  '
+              )"
+              if [ -n "$run_id" ] && ! [[ "$run_id" =~ ^[0-9]+$ ]]; then
+                echo "::error::unexpected CI run id: ${run_id}"
+                exit 1
+              fi
+            fi
+            if [ -n "$run_id" ]; then
+              run="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}")"
+              run_sha="$(jq -r .head_sha <<<"$run")"
+              status="$(jq -r .status <<<"$run")"
+              conclusion="$(jq -r '.conclusion // empty' <<<"$run")"
+              if [ "$run_sha" != "$oid" ]; then
+                echo "::error::CI run ${run_id} changed identity: ${run_sha} != ${oid}"
+                exit 1
+              fi
+              if [ "$status" = completed ]; then
+                if [ "$conclusion" != success ]; then
+                  echo "::error::CI run ${run_id} for ${oid} concluded ${conclusion}"
+                  exit 1
+                fi
+                ci_passed=true
+                echo "CI run ${run_id} passed for exact commit ${oid}"
+                break
+              fi
+            fi
+            echo "waiting for exact CI run on ${oid} · attempt ${attempt}/180"
+            sleep 5
+          done
+          if [ "$ci_passed" != true ]; then
+            echo "::error::timed out waiting for successful CI on exact commit ${oid}"
+            exit 1
+          fi
+
           last="$(gh api "repos/${GITHUB_REPOSITORY}/tags" --jq '[.[].name | select(test("^v1\\.0\\.[0-9]+$"))] | map(split(".")[2] | tonumber) | max')"
           next="v1.0.$((last + 1))"
           gh api "repos/${GITHUB_REPOSITORY}/git/refs" -f ref="refs/tags/${next}" -f sha="$oid" >/dev/null

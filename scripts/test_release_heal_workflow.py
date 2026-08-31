@@ -26,13 +26,14 @@ class ReleaseHealGate(unittest.TestCase):
 
     def test_exact_sha_ci_success_precedes_every_publication_mutation(self):
         ordered = [
-            "git push",
-            'oid="$(git rev-parse HEAD)"',
+            'if [ "$GITHUB_REF" != refs/heads/main ]',
+            'tag="$(gh release view',
             "/actions/workflows/ci.yml/dispatches",
             ".head_sha == $oid",
             'if [ "$run_sha" != "$oid" ]',
             'if [ "$conclusion" != success ]',
             'if [ "$ci_passed" != true ]',
+            "main moved after CI",
             'ref="refs/tags/${next}"',
             "/git/refs/tags/v1",
             'gh release create "$next"',
@@ -41,11 +42,65 @@ class ReleaseHealGate(unittest.TestCase):
         self.assertEqual(positions, sorted(positions))
 
     def test_ref_races_and_waits_fail_closed_with_a_bound(self):
-        self.assertIn('if [ "$remote_oid" != "$oid" ]', OPERATIONS)
+        self.assertGreaterEqual(
+            OPERATIONS.count('if [ "$remote_oid" != "$oid" ]'), 2
+        )
         self.assertIn("for attempt in $(seq 1 180)", OPERATIONS)
         self.assertIn("sleep 5", OPERATIONS)
         self.assertIn("timed out waiting for successful CI", OPERATIONS)
         self.assertRegex(HEAL, r"timeout-minutes: 25\b")
+
+    def test_dispatch_is_fresh_and_unique_to_the_caller_attempt(self):
+        self.assertIn("release_heal_nonce:", CI)
+        self.assertIn(
+            "run-name: ci · ${{ inputs.release_heal_nonce || github.event_name }}",
+            CI,
+        )
+        self.assertIn(
+            'nonce="release-heal-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${oid}"',
+            OPERATIONS,
+        )
+        self.assertIn('-f "inputs[release_heal_nonce]=${nonce}"', OPERATIONS)
+        self.assertIn(".display_title == $title", OPERATIONS)
+        self.assertIn("(.created_at | fromdateiso8601) >= $started", OPERATIONS)
+        self.assertIn('[ "$run_title" != "$expected_title" ]', OPERATIONS)
+
+    def test_numbered_tag_discovery_is_paginated_and_exact(self):
+        discovery = re.search(
+            r'numbered_refs="\$\((.*?)\n          \)"', OPERATIONS, re.DOTALL
+        )
+        self.assertIsNotNone(discovery)
+        self.assertIn("gh api --paginate --slurp", discovery.group(1))
+        self.assertIn("git/matching-refs/tags/v1.0.?per_page=100", discovery.group(1))
+        self.assertIn(r'^refs/tags/v1\\.0\\.[0-9]+$', OPERATIONS)
+
+    def test_numbered_tag_is_verified_around_release_creation(self):
+        create = OPERATIONS.index('gh release create "$next"')
+        before = OPERATIONS.rfind("assert_numbered_tag", 0, create)
+        after = OPERATIONS.find("assert_numbered_tag", create)
+        self.assertNotEqual(before, -1)
+        self.assertNotEqual(after, -1)
+        self.assertLess(before, create)
+        self.assertGreater(after, create)
+
+    def test_reruns_reconcile_every_partial_surface(self):
+        self.assertNotIn("default already $ver", OPERATIONS)
+        self.assertIn('git log -1 --format=%H -- action.yml', OPERATIONS)
+        for state in (
+            'numbered_oid" = "$oid',
+            'released_tag',
+            'floating_oid" = "$oid',
+            'grep -Fq "$readme_pin" README.md',
+        ):
+            self.assertIn(state, OPERATIONS)
+        self.assertIn('if [ -z "$numbered_oid" ]', OPERATIONS)
+        self.assertIn('if [ -z "$released_tag" ]', OPERATIONS)
+        self.assertIn('if ! grep -Fq "$readme_pin" README.md', OPERATIONS)
+
+    def test_main_ref_guard_precedes_every_mutation(self):
+        guard = OPERATIONS.index('if [ "$GITHUB_REF" != refs/heads/main ]')
+        first_edit = OPERATIONS.index("perl -pi")
+        self.assertLess(guard, first_edit)
 
     def test_ci_executes_every_static_workflow_test(self):
         self.assertIn(

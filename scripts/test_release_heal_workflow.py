@@ -2,8 +2,11 @@
 # SPDX-License-Identifier: Apache-2.0
 """Static safety ratchets for the release-heal publication order."""
 
+import os
 import pathlib
 import re
+import subprocess
+import tempfile
 import unittest
 
 
@@ -144,6 +147,29 @@ class ReleaseHealGate(unittest.TestCase):
         self.assertIn('if [ -z "$numbered_oid" ]', OPERATIONS)
         self.assertIn('if [ -z "$released_tag" ]', OPERATIONS)
         self.assertIn('if ! grep -Fq "$readme_pin" README.md', OPERATIONS)
+
+    def test_readme_replacement_preserves_the_literal_at_sign(self):
+        old = "supernovae-st/nika-action@" + "1" * 40 + " # v1.0.18\n"
+        expected = "nika-action@" + "a" * 40 + " # v1.0.19"
+        env = os.environ | {"README_PIN": expected}
+        with tempfile.TemporaryDirectory() as directory:
+            readme = pathlib.Path(directory) / "README.md"
+            readme.write_text(old)
+            subprocess.run(
+                [
+                    "perl",
+                    "-pi",
+                    "-e",
+                    r"s/nika-action\@[a-f0-9]{40} # v1\.0\.[0-9]+/$ENV{README_PIN}/",
+                    str(readme),
+                ],
+                check=True,
+                env=env,
+            )
+            self.assertEqual(
+                readme.read_text(),
+                "supernovae-st/" + expected + "\n",
+            )
 
     def test_main_ref_guard_precedes_every_mutation(self):
         guard = OPERATIONS.index('if [ "$GITHUB_REF" != refs/heads/main ]')

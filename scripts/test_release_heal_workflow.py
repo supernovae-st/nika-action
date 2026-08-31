@@ -38,8 +38,10 @@ class ReleaseHealGate(unittest.TestCase):
             "/git/refs/tags/v1",
             'gh release create "$next"',
         ]
-        positions = [OPERATIONS.index(token) for token in ordered]
-        self.assertEqual(positions, sorted(positions))
+        cursor = -1
+        for token in ordered:
+            cursor = OPERATIONS.find(token, cursor + 1)
+            self.assertNotEqual(cursor, -1, f"missing ordered operation: {token}")
 
     def test_ref_races_and_waits_fail_closed_with_a_bound(self):
         self.assertGreaterEqual(
@@ -82,6 +84,52 @@ class ReleaseHealGate(unittest.TestCase):
         self.assertNotEqual(after, -1)
         self.assertLess(before, create)
         self.assertGreater(after, create)
+
+    def test_release_discovery_accepts_only_public_stable_releases(self):
+        discovery = re.search(
+            r'release_matches="\$\((.*?)\n          \)"', OPERATIONS, re.DOTALL
+        )
+        self.assertIsNotNone(discovery)
+        self.assertIn(".draft == false", discovery.group(1))
+        self.assertIn(".prerelease == false", discovery.group(1))
+        self.assertIn(".body == $notes", discovery.group(1))
+        self.assertIn(".immutable // false", discovery.group(1))
+
+    def test_new_release_must_be_public_stable_immutable_and_exact(self):
+        create = OPERATIONS.index('gh release create "$next"')
+        immutable_check = OPERATIONS.index("new release ${next} is not public", create)
+        check_body = OPERATIONS[create:immutable_check]
+        for invariant in (
+            ".tag_name == $tag",
+            ".body == $notes",
+            ".draft == false",
+            ".prerelease == false",
+            ".immutable == true",
+        ):
+            self.assertIn(invariant, check_body)
+
+    def test_readme_only_recovery_proves_state_and_pushes_without_force(self):
+        start = OPERATIONS.index('[ "$released_immutable" = true ]')
+        dispatch = OPERATIONS.index("/actions/workflows/ci.yml/dispatches")
+        recovery = OPERATIONS[start:dispatch]
+        for proof in (
+            '[ "$released_immutable" = true ]',
+            ".draft == false",
+            ".prerelease == false",
+            ".immutable == true",
+            'observed_numbered" != "$oid',
+            'observed_floating" != "$oid',
+            '.head_sha == $oid',
+            '.conclusion == "success"',
+            'git merge-base --is-ancestor "$oid" "$remote_oid"',
+            'git show "${remote_oid}:action.yml"',
+            'git switch --detach "$remote_oid"',
+            "git push origin HEAD:main",
+        ):
+            self.assertIn(proof, recovery)
+        self.assertNotIn("--force", recovery)
+        self.assertLess(recovery.index("git commit -m"), recovery.rindex("observed_numbered="))
+        self.assertLess(recovery.rindex("observed_numbered="), recovery.index("git push origin HEAD:main"))
 
     def test_reruns_reconcile_every_partial_surface(self):
         self.assertNotIn("default already $ver", OPERATIONS)

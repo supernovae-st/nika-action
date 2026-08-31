@@ -74,7 +74,11 @@ jobs:
           )"
           release_matches="$(
             jq -r --arg notes "$notes" \
-              '[.[][] | select(.body == $notes) | .tag_name] | unique | .[]' \
+              '[.[][] |
+                select(.draft == false and .prerelease == false) |
+                select(.body == $notes) |
+                [.tag_name, ((.immutable // false) | tostring)]] |
+                unique | .[] | @tsv' \
               <<<"$releases"
           )"
           release_count="$(grep -c . <<<"$release_matches" || true)"
@@ -82,7 +86,8 @@ jobs:
             echo "::error::multiple action releases claim engine ${ver}"
             exit 1
           fi
-          released_tag="$(head -1 <<<"$release_matches")"
+          released_tag="$(head -1 <<<"$release_matches" | cut -f1)"
+          released_immutable="$(head -1 <<<"$release_matches" | cut -f2)"
 
           numbered_refs="$(
             gh api --paginate --slurp --method GET \
@@ -149,6 +154,92 @@ jobs:
              [ "$floating_oid" = "$oid" ] && \
              grep -Fq "$readme_pin" README.md; then
             echo "already reconciled to ${ver} · ${next} · ${oid}"
+            exit 0
+          fi
+
+          # A crash after immutable publication but before the README commit can
+          # leave main ahead of the tagged action commit. No public mutation is
+          # needed in that state: prove the immutable release, exact successful
+          # CI, tag, floating ref, and current served version, then repair only
+          # the README from the latest main. The non-force push closes ref races.
+          if [ "$numbered_oid" = "$oid" ] && \
+             [ -n "$released_tag" ] && \
+             [ "$released_immutable" = true ] && \
+             [ "$floating_oid" = "$oid" ]; then
+            release_state="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${next}")"
+            if ! jq -e --arg tag "$next" --arg notes "$notes" '
+              .tag_name == $tag and
+              .body == $notes and
+              .draft == false and
+              .prerelease == false and
+              .immutable == true
+            ' <<<"$release_state" >/dev/null; then
+              echo "::error::release ${next} is not public, stable, immutable, and exact"
+              exit 1
+            fi
+            observed_numbered="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${next}" --jq .object.sha)"
+            observed_floating="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/v1" --jq .object.sha)"
+            if [ "$observed_numbered" != "$oid" ] || [ "$observed_floating" != "$oid" ]; then
+              echo "::error::public refs changed during README-only recovery"
+              exit 1
+            fi
+            tested="$(
+              gh api --paginate --slurp --method GET \
+                "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?event=workflow_dispatch&per_page=100" |
+                jq -r --arg oid "$oid" '
+                  any(.[] | .workflow_runs[];
+                    .event == "workflow_dispatch" and
+                    .head_sha == $oid and
+                    .conclusion == "success" and
+                    (.display_title | startswith("ci · release-heal-")))
+                '
+            )"
+            if [ "$tested" != true ]; then
+              echo "::error::no successful release-heal CI proves ${oid}"
+              exit 1
+            fi
+
+            remote_oid="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq .object.sha)"
+            git fetch origin main
+            fetched_oid="$(git rev-parse origin/main)"
+            if [ "$fetched_oid" != "$remote_oid" ]; then
+              echo "::error::main moved while preparing README-only recovery"
+              exit 1
+            fi
+            if ! git merge-base --is-ancestor "$oid" "$remote_oid"; then
+              echo "::error::main ${remote_oid} is not a descendant of action commit ${oid}"
+              exit 1
+            fi
+            current_ver="$(git show "${remote_oid}:action.yml" | sed -n "s/.*default: '\([0-9][0-9.]*\)'.*/\1/p" | head -1)"
+            if [ "$current_ver" != "$ver" ]; then
+              echo "::error::current main serves ${current_ver}, expected ${ver}"
+              exit 1
+            fi
+
+            git switch --detach "$remote_oid"
+            perl -pi -e "s/nika-action\@[a-f0-9]{40} # v1\.0\.[0-9]+/${readme_pin}/" README.md
+            if ! grep -Fq "$readme_pin" README.md; then
+              echo "::error::README SHA pin was not reconciled"
+              exit 1
+            fi
+            git add README.md
+            git commit -m "docs(readme): the SHA-pin example points at ${next} (release-heal)"
+
+            # Re-read every public surface immediately before the docs-only push.
+            release_state="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${next}")"
+            observed_numbered="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${next}" --jq .object.sha)"
+            observed_floating="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/v1" --jq .object.sha)"
+            if ! jq -e --arg tag "$next" --arg notes "$notes" '
+              .tag_name == $tag and .body == $notes and
+              .draft == false and .prerelease == false and .immutable == true
+            ' <<<"$release_state" >/dev/null || \
+               [ "$observed_numbered" != "$oid" ] || \
+               [ "$observed_floating" != "$oid" ]; then
+              echo "::error::public state changed before README-only push"
+              exit 1
+            fi
+            git push origin HEAD:main
+            echo "repaired README for ${ver} · ${next}; public state unchanged"
             exit 0
           fi
 
@@ -255,6 +346,14 @@ jobs:
             gh release create "$next" --latest --title "$next — the default engine follows ${tag}" \
               --notes "$notes"
             assert_numbered_tag
+            created_release="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${next}")"
+            if ! jq -e --arg tag "$next" --arg notes "$notes" '
+              .tag_name == $tag and .body == $notes and
+              .draft == false and .prerelease == false and .immutable == true
+            ' <<<"$created_release" >/dev/null; then
+              echo "::error::new release ${next} is not public, stable, immutable, and exact"
+              exit 1
+            fi
           else
             assert_numbered_tag
           fi

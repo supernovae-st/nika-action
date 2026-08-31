@@ -1,4 +1,5 @@
 name: ci
+run-name: ci · ${{ inputs.release_heal_nonce || github.event_name }}
 
 # The action's own proof: (1) the renderer's unit tests run against REAL
 # captured fixtures (clean · broken-JSON · parse-fatal non-JSON), (2) the
@@ -14,6 +15,11 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      release_heal_nonce:
+        description: Binds a release-heal dispatch to one caller attempt
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -25,7 +31,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - run: python3 -m unittest scripts.test_render_comment -v
+      - run: python3 -m unittest discover -s scripts -p 'test_*.py' -v
 
   smoke:
     name: taught subcommands answer in the served engine

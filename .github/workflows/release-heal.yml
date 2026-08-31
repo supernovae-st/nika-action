@@ -16,41 +16,356 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: write
   contents: write
+
+concurrency:
+  group: release-heal
+  cancel-in-progress: false
 
 jobs:
   heal:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
       - name: The served default follows the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+          if [ "$GITHUB_REF" != refs/heads/main ]; then
+            echo "::error::release-heal must run from refs/heads/main"
+            exit 1
+          fi
+
           tag="$(gh release view --repo supernovae-st/nika --json tagName --jq .tagName)"
           [[ "$tag" =~ ^v[0-9][0-9.]*$ ]] || { echo "::error::unexpected tag: $tag"; exit 1; }
           ver="${tag#v}"
-          cur="$(sed -n "s/.*default: '\([0-9][0-9.]*\)'.*/\1/p" action.yml | head -1)"
-          if [ "$cur" = "$ver" ]; then echo "default already $ver — nothing to heal"; exit 0; fi
           curl -fsSL "https://github.com/supernovae-st/nika/releases/download/${tag}/SHA256SUMS" >/dev/null
-          perl -pi -e "s/default: '[0-9][0-9.]*'/default: '${ver}'/" action.yml
-          perl -pi -e "s/\| \`engine-version\` \| \`[0-9][0-9.]*\` \|/| \`engine-version\` | \`${ver}\` |/" README.md
+
           git config user.name "nika-release[bot]"
           git config user.email "nika@supernovae.studio"
-          git add action.yml README.md
-          git commit -m "chore: the default engine follows the release — ${ver} (release-heal)"
-          git push
-          oid="$(git rev-parse HEAD)"
-          last="$(gh api "repos/${GITHUB_REPOSITORY}/tags" --jq '[.[].name | select(test("^v1\\.0\\.[0-9]+$"))] | map(split(".")[2] | tonumber) | max')"
-          next="v1.0.$((last + 1))"
-          gh api "repos/${GITHUB_REPOSITORY}/git/refs" -f ref="refs/tags/${next}" -f sha="$oid" >/dev/null
-          gh api -X PATCH "repos/${GITHUB_REPOSITORY}/git/refs/tags/v1" -f sha="$oid" -F force=true >/dev/null
-          gh release create "$next" --latest --title "$next — the default engine follows ${tag}" \
-            --notes "Default \`engine-version\` → ${ver} (release-heal). \`v1\` points here."
-          perl -pi -e "s/nika-action\@[a-f0-9]{40} # v1\.0\.[0-9]+/nika-action\@${oid} # ${next}/" README.md
-          git add README.md
-          git commit -m "docs(readme): the SHA-pin example points at ${next} (release-heal)"
-          git push
+          cur="$(sed -n "s/.*default: '\([0-9][0-9.]*\)'.*/\1/p" action.yml | head -1)"
+          if [ "$cur" != "$ver" ]; then
+            perl -pi -e "s/default: '[0-9][0-9.]*'/default: '${ver}'/" action.yml
+            perl -pi -e "s/\| \`engine-version\` \| \`[0-9][0-9.]*\` \|/| \`engine-version\` | \`${ver}\` |/" README.md
+            git add action.yml README.md
+            git commit -m "chore: the default engine follows the release — ${ver} (release-heal)"
+            git push origin HEAD:main
+            oid="$(git rev-parse HEAD)"
+          else
+            # A completed heal leaves a README-only commit after the tagged action
+            # commit. Recover the commit that actually introduced this action.yml.
+            oid="$(git log -1 --format=%H -- action.yml)"
+            oid_ver="$(git show "${oid}:action.yml" | sed -n "s/.*default: '\([0-9][0-9.]*\)'.*/\1/p" | head -1)"
+            if [ "$oid_ver" != "$ver" ]; then
+              echo "::error::action commit ${oid} serves ${oid_ver}, expected ${ver}"
+              exit 1
+            fi
+          fi
+
+          notes="Default \`engine-version\` → ${ver} (release-heal). \`v1\` points here."
+          releases="$(
+            gh api --paginate --slurp --method GET \
+              "repos/${GITHUB_REPOSITORY}/releases?per_page=100"
+          )"
+          release_matches="$(
+            jq -r --arg notes "$notes" \
+              '[.[][] |
+                select(.draft == false and .prerelease == false) |
+                select(.body == $notes) |
+                [.tag_name, ((.immutable // false) | tostring)]] |
+                unique | .[] | @tsv' \
+              <<<"$releases"
+          )"
+          release_count="$(grep -c . <<<"$release_matches" || true)"
+          if [ "$release_count" -gt 1 ]; then
+            echo "::error::multiple action releases claim engine ${ver}"
+            exit 1
+          fi
+          released_tag="$(head -1 <<<"$release_matches" | cut -f1)"
+          released_immutable="$(head -1 <<<"$release_matches" | cut -f2)"
+
+          numbered_refs="$(
+            gh api --paginate --slurp --method GET \
+              "repos/${GITHUB_REPOSITORY}/git/matching-refs/tags/v1.0.?per_page=100"
+          )"
+          matching_tags="$(
+            jq -r --arg oid "$oid" '
+              [.[][] |
+                select(.ref | test("^refs/tags/v1\\.0\\.[0-9]+$")) |
+                select(.object.sha == $oid) |
+                .ref | sub("^refs/tags/"; "")] | unique | .[]
+            ' <<<"$numbered_refs"
+          )"
+          matching_count="$(grep -c . <<<"$matching_tags" || true)"
+          if [ "$matching_count" -gt 1 ]; then
+            echo "::error::multiple numbered tags point at action commit ${oid}"
+            exit 1
+          fi
+          matching_tag="$(head -1 <<<"$matching_tags")"
+
+          if [ -n "$released_tag" ]; then
+            [[ "$released_tag" =~ ^v1\.0\.[0-9]+$ ]] || {
+              echo "::error::release for engine ${ver} has unexpected tag ${released_tag}"
+              exit 1
+            }
+            if [ -n "$matching_tag" ] && [ "$matching_tag" != "$released_tag" ]; then
+              echo "::error::release ${released_tag} and commit tag ${matching_tag} disagree"
+              exit 1
+            fi
+            next="$released_tag"
+          elif [ -n "$matching_tag" ]; then
+            next="$matching_tag"
+          else
+            last="$(
+              jq -r '
+                [.[][] | .ref |
+                  select(test("^refs/tags/v1\\.0\\.[0-9]+$")) |
+                  split(".")[2] | tonumber] | max // 0
+              ' <<<"$numbered_refs"
+            )"
+            next="v1.0.$((last + 1))"
+          fi
+
+          numbered_oid="$(
+            jq -r --arg ref "refs/tags/${next}" \
+              '[.[][] | select(.ref == $ref) | .object.sha] | unique | .[0] // empty' \
+              <<<"$numbered_refs"
+          )"
+          if [ -n "$numbered_oid" ] && [ "$numbered_oid" != "$oid" ]; then
+            echo "::error::numbered tag ${next} points at ${numbered_oid}, expected ${oid}"
+            exit 1
+          fi
+          if [ -n "$released_tag" ] && [ "$numbered_oid" != "$oid" ]; then
+            echo "::error::release ${released_tag} is not backed by its expected commit"
+            exit 1
+          fi
+
+          floating_oid="$(
+            gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/v1" --jq .object.sha 2>/dev/null || true
+          )"
+          readme_pin="nika-action@${oid} # ${next}"
+          if [ "$numbered_oid" = "$oid" ] && \
+             [ -n "$released_tag" ] && \
+             [ "$floating_oid" = "$oid" ] && \
+             grep -Fq "$readme_pin" README.md; then
+            echo "already reconciled to ${ver} · ${next} · ${oid}"
+            exit 0
+          fi
+
+          # A crash after immutable publication but before the README commit can
+          # leave main ahead of the tagged action commit. No public mutation is
+          # needed in that state: prove the immutable release, exact successful
+          # CI, tag, floating ref, and current served version, then repair only
+          # the README from the latest main. The non-force push closes ref races.
+          if [ "$numbered_oid" = "$oid" ] && \
+             [ -n "$released_tag" ] && \
+             [ "$released_immutable" = true ] && \
+             [ "$floating_oid" = "$oid" ]; then
+            release_state="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${next}")"
+            if ! jq -e --arg tag "$next" --arg notes "$notes" '
+              .tag_name == $tag and
+              .body == $notes and
+              .draft == false and
+              .prerelease == false and
+              .immutable == true
+            ' <<<"$release_state" >/dev/null; then
+              echo "::error::release ${next} is not public, stable, immutable, and exact"
+              exit 1
+            fi
+            observed_numbered="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${next}" --jq .object.sha)"
+            observed_floating="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/v1" --jq .object.sha)"
+            if [ "$observed_numbered" != "$oid" ] || [ "$observed_floating" != "$oid" ]; then
+              echo "::error::public refs changed during README-only recovery"
+              exit 1
+            fi
+            tested="$(
+              gh api --paginate --slurp --method GET \
+                "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?event=workflow_dispatch&per_page=100" |
+                jq -r --arg oid "$oid" '
+                  any(.[] | .workflow_runs[];
+                    .event == "workflow_dispatch" and
+                    .head_sha == $oid and
+                    .conclusion == "success" and
+                    (.display_title | startswith("ci · release-heal-")))
+                '
+            )"
+            if [ "$tested" != true ]; then
+              echo "::error::no successful release-heal CI proves ${oid}"
+              exit 1
+            fi
+
+            remote_oid="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq .object.sha)"
+            git fetch origin main
+            fetched_oid="$(git rev-parse origin/main)"
+            if [ "$fetched_oid" != "$remote_oid" ]; then
+              echo "::error::main moved while preparing README-only recovery"
+              exit 1
+            fi
+            if ! git merge-base --is-ancestor "$oid" "$remote_oid"; then
+              echo "::error::main ${remote_oid} is not a descendant of action commit ${oid}"
+              exit 1
+            fi
+            current_ver="$(git show "${remote_oid}:action.yml" | sed -n "s/.*default: '\([0-9][0-9.]*\)'.*/\1/p" | head -1)"
+            if [ "$current_ver" != "$ver" ]; then
+              echo "::error::current main serves ${current_ver}, expected ${ver}"
+              exit 1
+            fi
+
+            git switch --detach "$remote_oid"
+            perl -pi -e "s/nika-action\@[a-f0-9]{40} # v1\.0\.[0-9]+/${readme_pin}/" README.md
+            if ! grep -Fq "$readme_pin" README.md; then
+              echo "::error::README SHA pin was not reconciled"
+              exit 1
+            fi
+            git add README.md
+            git commit -m "docs(readme): the SHA-pin example points at ${next} (release-heal)"
+
+            # Re-read every public surface immediately before the docs-only push.
+            release_state="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${next}")"
+            observed_numbered="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${next}" --jq .object.sha)"
+            observed_floating="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/v1" --jq .object.sha)"
+            if ! jq -e --arg tag "$next" --arg notes "$notes" '
+              .tag_name == $tag and .body == $notes and
+              .draft == false and .prerelease == false and .immutable == true
+            ' <<<"$release_state" >/dev/null || \
+               [ "$observed_numbered" != "$oid" ] || \
+               [ "$observed_floating" != "$oid" ]; then
+              echo "::error::public state changed before README-only push"
+              exit 1
+            fi
+            git push origin HEAD:main
+            echo "repaired README for ${ver} · ${next}; public state unchanged"
+            exit 0
+          fi
+
+          # A release-heal push made with GITHUB_TOKEN does not trigger push CI.
+          # Dispatch a uniquely named run and require that name, its creation time,
+          # and its head SHA to match this exact caller attempt.
+          remote_oid="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq .object.sha)"
+          if [ "$remote_oid" != "$oid" ]; then
+            echo "::error::main moved before CI dispatch: expected ${oid}, found ${remote_oid}"
+            exit 1
+          fi
+          dispatch_epoch="$(date -u +%s)"
+          nonce="release-heal-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${oid}"
+          expected_title="ci · ${nonce}"
+          gh api -X POST \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/dispatches" \
+            -f ref=main -f "inputs[release_heal_nonce]=${nonce}"
+          run_id=""
+          ci_passed=false
+          for attempt in $(seq 1 180); do
+            if [ -z "$run_id" ]; then
+              run_id="$(
+                gh api --method GET \
+                  "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs" \
+                  -f event=workflow_dispatch -f per_page=100 |
+                  jq -r --arg oid "$oid" --arg title "$expected_title" \
+                    --argjson started "$dispatch_epoch" '
+                    [.workflow_runs[] |
+                      select(.event == "workflow_dispatch" and
+                             .head_sha == $oid and
+                             .display_title == $title and
+                             (.created_at | fromdateiso8601) >= $started)] |
+                    sort_by(.created_at) | last | .id // empty
+                  '
+              )"
+              if [ -n "$run_id" ] && ! [[ "$run_id" =~ ^[0-9]+$ ]]; then
+                echo "::error::unexpected CI run id: ${run_id}"
+                exit 1
+              fi
+            fi
+            if [ -n "$run_id" ]; then
+              run="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}")"
+              run_sha="$(jq -r .head_sha <<<"$run")"
+              run_title="$(jq -r .display_title <<<"$run")"
+              run_event="$(jq -r .event <<<"$run")"
+              status="$(jq -r .status <<<"$run")"
+              conclusion="$(jq -r '.conclusion // empty' <<<"$run")"
+              if [ "$run_sha" != "$oid" ] || \
+                 [ "$run_title" != "$expected_title" ] || \
+                 [ "$run_event" != workflow_dispatch ]; then
+                echo "::error::CI run ${run_id} changed identity"
+                exit 1
+              fi
+              if [ "$status" = completed ]; then
+                if [ "$conclusion" != success ]; then
+                  echo "::error::CI run ${run_id} for ${oid} concluded ${conclusion}"
+                  exit 1
+                fi
+                ci_passed=true
+                echo "CI run ${run_id} passed for exact commit ${oid}"
+                break
+              fi
+            fi
+            echo "waiting for exact CI run on ${oid} · attempt ${attempt}/180"
+            sleep 5
+          done
+          if [ "$ci_passed" != true ]; then
+            echo "::error::timed out waiting for successful CI on exact commit ${oid}"
+            exit 1
+          fi
+
+          # This is the final race boundary: no public ref or release mutation is
+          # allowed unless main still names the exact commit whose CI just passed.
+          remote_oid="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq .object.sha)"
+          if [ "$remote_oid" != "$oid" ]; then
+            echo "::error::main moved after CI: expected ${oid}, found ${remote_oid}"
+            exit 1
+          fi
+
+          assert_numbered_tag() {
+            observed="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${next}" --jq .object.sha)"
+            if [ "$observed" != "$oid" ]; then
+              echo "::error::numbered tag ${next} points at ${observed}, expected ${oid}"
+              exit 1
+            fi
+          }
+
+          if [ -z "$numbered_oid" ]; then
+            gh api "repos/${GITHUB_REPOSITORY}/git/refs" \
+              -f ref="refs/tags/${next}" -f sha="$oid" >/dev/null
+          fi
+          assert_numbered_tag
+
+          if [ -z "$floating_oid" ]; then
+            gh api "repos/${GITHUB_REPOSITORY}/git/refs" \
+              -f ref="refs/tags/v1" -f sha="$oid" >/dev/null
+          elif [ "$floating_oid" != "$oid" ]; then
+            gh api -X PATCH "repos/${GITHUB_REPOSITORY}/git/refs/tags/v1" \
+              -f sha="$oid" -F force=true >/dev/null
+          fi
+
+          if [ -z "$released_tag" ]; then
+            assert_numbered_tag
+            gh release create "$next" --latest --title "$next — the default engine follows ${tag}" \
+              --notes "$notes"
+            assert_numbered_tag
+            created_release="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${next}")"
+            if ! jq -e --arg tag "$next" --arg notes "$notes" '
+              .tag_name == $tag and .body == $notes and
+              .draft == false and .prerelease == false and .immutable == true
+            ' <<<"$created_release" >/dev/null; then
+              echo "::error::new release ${next} is not public, stable, immutable, and exact"
+              exit 1
+            fi
+          else
+            assert_numbered_tag
+          fi
+
+          if ! grep -Fq "$readme_pin" README.md; then
+            perl -pi -e "s/nika-action\@[a-f0-9]{40} # v1\.0\.[0-9]+/${readme_pin}/" README.md
+            if ! grep -Fq "$readme_pin" README.md; then
+              echo "::error::README SHA pin was not reconciled"
+              exit 1
+            fi
+            git add README.md
+            git commit -m "docs(readme): the SHA-pin example points at ${next} (release-heal)"
+            git push origin HEAD:main
+          fi
           echo "healed to ${ver} · ${next} · v1 moved"

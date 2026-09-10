@@ -368,7 +368,7 @@ verdict is the binary's exit code and its JSON, never this action's prose.
 
 All the buildings: [nika-spec](https://github.com/supernovae-st/nika-spec) ·
 [nika](https://github.com/supernovae-st/nika) ·
-[nika.sh](https://github.com/supernovae-st/nika.sh) ·
+[nika.sh](https://nika.sh) ·
 [nika-docs](https://github.com/supernovae-st/nika-docs) ·
 [nika-client](https://github.com/supernovae-st/nika-client) ·
 [nika-vscode](https://github.com/supernovae-st/nika-vscode) ·

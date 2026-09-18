@@ -33,7 +33,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: python3 -m unittest discover -s scripts -p 'test_*.py' -v
       - name: Retired program-suffix ratchet
-        run: python3 scripts/suffix_ratchet.py
+        run: |
+          python3 scripts/suffix_ratchet.py
+          python3 scripts/suffix_ratchet.py --selftest
+          python3 -m unittest scripts/test_suffix_ratchet.py -v
 
   smoke:
     name: taught subcommands answer in the served engine

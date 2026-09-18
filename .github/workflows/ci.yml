@@ -53,8 +53,8 @@ jobs:
       - name: Probe every subcommand this repo teaches
         run: |
           set -euo pipefail
-          # action.yml runs check · test · inspect — the README also teaches new
-          for sub in check test inspect new; do
+          # action.yml runs check · test · inspect — the README also teaches compile
+          for sub in check test inspect compile; do
             if ! nika "${sub}" --help > /dev/null; then
               echo "::error::taught subcommand died: nika ${sub} --help — this repo teaches a verb the served engine no longer ships"
               exit 1

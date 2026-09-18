@@ -32,6 +32,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: python3 -m unittest discover -s scripts -p 'test_*.py' -v
+      - name: Retired program-suffix ratchet
+        run: python3 scripts/suffix_ratchet.py
 
   smoke:
     name: taught subcommands answer in the served engine
@@ -66,14 +68,14 @@ jobs:
       - name: Clean workflow → exit 0
         uses: ./
         with:
-          workflow: fixtures/flow.nika.yaml
+          workflow: fixtures/flow.nika
           comment: 'false'
       - name: Broken workflow → exit 2 (expected failure)
         id: broken
         continue-on-error: true
         uses: ./
         with:
-          workflow: fixtures/broken.nika.yaml
+          workflow: fixtures/broken.nika
           comment: 'false'
       - name: The broken lane MUST have failed
         run: |
@@ -85,7 +87,7 @@ jobs:
       - name: Test lane → golden passes offline (mock provider)
         uses: ./
         with:
-          workflow: fixtures/flow.nika.yaml
+          workflow: fixtures/flow.nika
           mode: test
           comment: 'false'
       - name: Unknown mode → refused (expected failure)
@@ -93,7 +95,7 @@ jobs:
         continue-on-error: true
         uses: ./
         with:
-          workflow: fixtures/flow.nika.yaml
+          workflow: fixtures/flow.nika
           mode: run
           comment: 'false'
       - name: The unknown mode MUST have been refused

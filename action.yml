@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 name: 'Nika — plan with receipts'
 description: >-
-  Static pre-flight for .nika.yaml AI workflows: nika check verdict, honest
+  Static pre-flight for .nika AI workflows: nika check verdict, honest
   cost floor (never a fake zero), required models/secrets, egress statics,
   the DAG — as a sticky PR comment and step summary. Check-only and
   zero-secret by default; the offline mock test lane is opt-in;
@@ -13,7 +13,7 @@ branding:
 
 inputs:
   workflow:
-    description: 'Path to the .nika.yaml workflow file to check'
+    description: 'Path to the .nika workflow file to check'
     required: true
   mode:
     description: >-
@@ -133,7 +133,7 @@ runs:
         set -uo pipefail
         # a red golden must NOT kill the receipt: capture the exit, let the
         # render/comment run, gate at the end — receipts matter most when red
-        if [ -f "${WORKFLOW%.nika.yaml}.golden.json" ] || [ -f "${WORKFLOW}.golden.json" ]; then
+        if [ -f "${WORKFLOW}.golden.json" ]; then
           set +e
           nika test "${WORKFLOW}"
           code=$?

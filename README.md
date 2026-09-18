@@ -85,9 +85,10 @@ outputs:
   summary: ${{ tasks.summary.output }}
 ```
 
-No workflow yet? `nika new chain flows/readme-summary.nika` writes the
-engine's `chain` skeleton; fill its `# SLOT:` lines, then `nika check` it
-until it audits.
+No workflow yet? `nika compile hello hello.nika` writes the offline
+lesson. For `chain`, preview with `nika compile chain --json` and answer
+its questions with `--answer KEY=JSON_LITERAL` before naming a
+destination; only Ready writes.
 
 Open a pull request. The job downloads the pinned engine release, verifies the
 tarball against the release's `SHA256SUMS`, runs `nika check --json` on the

@@ -35,7 +35,7 @@ Paste this as `.github/workflows/nika.yml`:
 name: nika
 on:
   pull_request:
-    paths: ['**.nika.yaml', '.github/workflows/nika.yml']
+    paths: ['**.nika', '.github/workflows/nika.yml']
 permissions:
   contents: read
   pull-requests: write      # the sticky comment · without it the receipt lands in the step summary
@@ -46,7 +46,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: supernovae-st/nika-action@v1
         with:
-          workflow: flows/readme-summary.nika.yaml
+          workflow: flows/readme-summary.nika
           mode: check           # or: test · the offline golden lane, still no key
 ```
 
@@ -58,7 +58,7 @@ this repository's release bot re-points at every engine release:
       - uses: supernovae-st/nika-action@e5998b9dbb19c6edd699a43a28eaedb3951ad43d # v1.0.21
 ```
 
-Point `workflow:` at a `.nika.yaml` in the repository. This is the one the
+Point `workflow:` at a `.nika` in the repository. This is the one the
 replay below uses; `mock/echo` rehearses with no key and no network, and a
 real seat in its place changes nothing about the check:
 
@@ -85,9 +85,10 @@ outputs:
   summary: ${{ tasks.summary.output }}
 ```
 
-No workflow yet? `nika new chain flows/readme-summary.nika.yaml` writes the
-engine's `chain` skeleton; fill its `# SLOT:` lines, then `nika check` it
-until it audits.
+No workflow yet? `nika compile hello hello.nika` writes the offline
+lesson. For `chain`, preview with `nika compile chain --json` and answer
+its questions with `--answer KEY=JSON_LITERAL` before naming a
+destination; only Ready writes.
 
 Open a pull request. The job downloads the pinned engine release, verifies the
 tarball against the release's `SHA256SUMS`, runs `nika check --json` on the
@@ -123,7 +124,7 @@ The comment the job posts, rendered by the action's `scripts/render_comment.py`
 from that check's JSON and from `nika inspect --format mermaid` (GitHub draws
 the DAG):
 
-> ✅ **nika check** — clean · `flows/readme-summary.nika.yaml` · 2 task(s) · 2 wave(s)
+> ✅ **nika check** — clean · `flows/readme-summary.nika` · 2 task(s) · 2 wave(s)
 >
 > 💰 **cost floor ≥ $0.00**
 >
@@ -145,7 +146,7 @@ the DAG):
 > </details>
 > ---
 > <sub>nika 0.118.7 · report_version 1 · floor semantics: spend ≥ floor · [what this checks](https://docs.nika.sh/reference/machine-surfaces)</sub>
-> <!-- nika-action:v1:flows/readme-summary.nika.yaml -->
+> <!-- nika-action:v1:flows/readme-summary.nika -->
 
 Every push re-renders the same comment in place; nothing is spent, no
 provider is called, no key is read.
@@ -184,7 +185,7 @@ provider is called, no key is read.
 
 The gate step exits with the check's own code (2 for findings) and the
 comment carries the finding table. This repository's CI runs the action on
-`fixtures/broken.nika.yaml`, a workflow that reads a task that does not
+`fixtures/broken.nika`, a workflow that reads a task that does not
 exist, and requires that failure; the same file on `nika 0.118.7` opens with:
 
 ```
@@ -200,11 +201,11 @@ with no key. Write the golden once with `nika test <file> --update`, review
 it, commit it; from then on the lane compares:
 
 ```sh
-nika test flows/readme-summary.nika.yaml
+nika test flows/readme-summary.nika
 ```
 
 ```
-✔ golden match · 1 key · 142B · flows/readme-summary.nika.yaml.golden.json
+✔ golden match · 1 key · 142B · flows/readme-summary.nika.golden.json
 ```
 
 A missing golden skips the lane and says so in the receipt; a red golden is
@@ -219,7 +220,7 @@ rendered first and gates after, because receipts matter most when red.
 - **Fork pull requests**: the default `GITHUB_TOKEN` on a fork `pull_request`
   is read-only, so the comment degrades to the **step summary**. Never wire
   this (or anything) through `pull_request_target` plus a checkout of the
-  pull request's head: a `.nika.yaml` can declare `exec:` steps by design, so
+  pull request's head: a `.nika` can declare `exec:` steps by design, so
   « run the PR's file under a privileged token » is code execution with your
   secrets.
 - **One comment, forever**: upserted by a hidden per-file marker.
@@ -244,10 +245,10 @@ rendered first and gates after, because receipts matter most when red.
 
 | input | default | notes |
 |---|---|---|
-| `workflow` | required | path to the `.nika.yaml` (one file; matrix over paths for more) |
+| `workflow` | required | path to the `.nika` (one file; matrix over paths for more) |
 | `mode` | `check` | `check` \| `test` |
 | `comment` | `true` | sticky PR comment (needs `pull-requests: write`) |
-| `engine-version` | `0.119.0` | the engine release to install, verified against the release's `SHA256SUMS` |
+| `engine-version` | `0.120.0` | the engine release to install, verified against the release's `SHA256SUMS` |
 | `native-strict` | `false` | fail while native-first hints remain (`nika check --native-strict`) |
 | `github-token` | `github.token` | override for the comment upsert |
 
@@ -272,7 +273,7 @@ downloaded from the engine's GitHub release and verified against its
       - id: nika
         uses: supernovae-st/nika-action@v1
         with:
-          workflow: flows/readme-summary.nika.yaml
+          workflow: flows/readme-summary.nika
       - run: echo "clean=${CLEAN} floor=${FLOOR} unbounded=${UNBOUNDED}"
         env:
           CLEAN: ${{ steps.nika.outputs.clean }}
@@ -291,7 +292,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        flow: [flows/report.nika.yaml, flows/triage.nika.yaml]
+        flow: [flows/report.nika, flows/triage.nika]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: supernovae-st/nika-action@v1
@@ -343,7 +344,7 @@ actionlint
 The repository's CI runs three lanes: the unit tests above; a smoke lane that
 installs the served default and requires every taught subcommand (`check`,
 `test`, `inspect`, `new`) to answer `--help`; and an end-to-end lane in which
-the action runs itself, `fixtures/flow.nika.yaml` must pass, `fixtures/broken.nika.yaml`
+the action runs itself, `fixtures/flow.nika` must pass, `fixtures/broken.nika`
 must fail, the golden lane must pass offline and `mode: run` must be refused.
 
 <!-- city:map -->
@@ -359,7 +360,7 @@ must fail, the golden lane must pass offline and `mode: run` must be refused.
 🏭 nika-action ── this gate, used as supernovae-st/nika-action@v1: the engine's verdict on every pull request
     │
     ▼
-🧩 any GitHub repository that keeps .nika.yaml files
+🧩 any GitHub repository that keeps .nika files
 ```
 
 This repository runs the engine's released binary and reports what it says.

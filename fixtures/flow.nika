@@ -6,7 +6,7 @@
 # simulates the model, not effects — a `nika:write` there is refused,
 # NIKA-452), so the fixture ends at the typed output. The full
 # gather→think→persist shape lives in the engine's `chain` skeleton
-# (`nika new chain <file>`).
+# (`nika compile chain --json`, then a Ready destination).
 #
 # CI runs the action on this file and requires exit 0. It therefore has
 # to be current, not merely plausible — a fixture that fails the check it

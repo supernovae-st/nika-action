@@ -55,7 +55,7 @@ the release in a comment: the form Dependabot and Renovate bump, and the line
 this repository's release bot re-points at every engine release:
 
 ```yaml
-      - uses: supernovae-st/nika-action@34c551a9af6f28d691554c70b7f98382ed6a0d3e # v1.0.22
+      - uses: supernovae-st/nika-action@cd9dac753bd1d4139192e5ab28e2c75dc84f193b # v1.0.23
 ```
 
 Point `workflow:` at a `.nika` in the repository. This is the one the

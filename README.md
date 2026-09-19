@@ -248,7 +248,7 @@ rendered first and gates after, because receipts matter most when red.
 | `workflow` | required | path to the `.nika` (one file; matrix over paths for more) |
 | `mode` | `check` | `check` \| `test` |
 | `comment` | `true` | sticky PR comment (needs `pull-requests: write`) |
-| `engine-version` | `0.120.0` | the engine release to install, verified against the release's `SHA256SUMS` |
+| `engine-version` | `0.120.1` | the engine release to install, verified against the release's `SHA256SUMS` |
 | `native-strict` | `false` | fail while native-first hints remain (`nika check --native-strict`) |
 | `github-token` | `github.token` | override for the comment upsert |
 

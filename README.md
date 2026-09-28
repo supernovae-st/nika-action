@@ -26,13 +26,14 @@
 </p>
 
 <!-- engine clips: served from the engine repository's main branch (media/), so they follow its latest render, not a release tag · each clip's plate names the engine version its output was captured from -->
+<p align="center"><b>Watch this action's comment on a pull request: one finding on the first push, clean after the fix.</b></p>
 <p align="center">
-  <a href="https://github.com/supernovae-st/nika/raw/refs/heads/main/media/videos/static-check-fix.mp4">
-    <img src="https://raw.githubusercontent.com/supernovae-st/nika/main/media/gifs/static-check-fix.optimized.gif"
-         alt="nika check finds two defects in a pull-request review workflow, the fix is applied, and the re-check comes back clean; nothing runs and no token is spent" width="760">
+  <a href="https://raw.githubusercontent.com/supernovae-st/nika/main/media/gifs/pr-check-comment.optimized.gif">
+    <img src="https://raw.githubusercontent.com/supernovae-st/nika/main/media/gifs/pr-check-comment.optimized.gif"
+         alt="A pull request adds a workflow; this action's comment names one finding, NIKA-DAG-002, and after the fixing push the same comment turns clean and draws the workflow's graph" width="960">
   </a>
 </p>
-<p align="center"><sub><code>nika check</code> in a terminal: the audit this action posts on your pull requests. Click to open the video.</sub></p>
+<p align="center"><sub>Notice the finding's hint (<code>NIKA-DAG-002</code>, "did you mean <code>assess</code>?"), then the same comment edited in place, clean, with the graph. Every word of both comments is this action's own renderer on real <code>nika check --json</code> and <code>nika inspect</code> output; the pull-request page around them is an illustration. Click to open it full size.</sub></p>
 
 ## What is Nika?
 
@@ -90,7 +91,7 @@ jobs:
 repository ([several files?](#checking-several-files)). Don't have one yet?
 Install the CLI with `brew install supernovae-st/tap/nika`, then
 `nika compile hello hello.nika` writes a one-task workflow that runs offline
-([watch the first four commands](https://github.com/supernovae-st/nika/raw/refs/heads/main/media/videos/full-loop.mp4)).
+([watch the first four commands](https://raw.githubusercontent.com/supernovae-st/nika/main/media/gifs/full-loop.optimized.gif)).
 
 **3 · Open a pull request.** The job installs the engine, checks the file and
 comments. A clean check passes; findings fail the job.
@@ -179,18 +180,18 @@ Producing it spent nothing, called no provider and read no key. Real comments
 from this action are on the
 [starter template's pull request #14](https://github.com/supernovae-st/nika-actions-starter/pull/14).
 
-<!-- motion: a pull request receiving the nika check sticky comment -->
-
 **🗺 DAG** opens the workflow's graph, drawn by GitHub from `nika inspect`.
-Here is the same projection for a bigger workflow, with the waves
-`nika check` plans for it:
+
+**Watch the same projection for a bigger workflow, lit wave by wave in the
+order `nika check` plans.**
 
 <p align="center">
-  <a href="https://github.com/supernovae-st/nika/raw/refs/heads/main/media/videos/dag-execution.mp4">
+  <a href="https://raw.githubusercontent.com/supernovae-st/nika/main/media/gifs/dag-execution.optimized.gif">
     <img src="https://raw.githubusercontent.com/supernovae-st/nika/main/media/gifs/dag-execution.optimized.gif"
-         alt="A pull-request review workflow drawn as a graph by nika inspect, lit wave by wave as nika check plans it; nothing runs" width="760">
+         alt="A pull-request review workflow drawn as a graph by nika inspect, lit wave by wave as nika check plans it; nothing runs" width="860">
   </a>
 </p>
+<p align="center"><sub>Notice the waves: steps that do not depend on each other share one. The graph is <code>nika inspect</code>'s and the waves are <code>nika check</code>'s, captured from the real CLI; the lighting only illustrates the plan, because nothing runs. Click to open it full size.</sub></p>
 
 ### When the check fails
 
@@ -215,6 +216,17 @@ and the comment starts with:
 > 💰 **cost floor ≥ $0.00** · ⚠ 1 unpriced/unbounded task(s) — never rendered as $0
 > - `use_ghost` · ollama/qwen3.5:4b · unpriced (NoTokenLimit)
 
+**Watch `nika check` catch two mistakes before anything runs, then pass the
+fixed file.**
+
+<p align="center">
+  <a href="https://raw.githubusercontent.com/supernovae-st/nika/main/media/gifs/static-check-fix.optimized.gif">
+    <img src="https://raw.githubusercontent.com/supernovae-st/nika/main/media/gifs/static-check-fix.optimized.gif"
+         alt="nika check finds two defects in a pull-request review workflow, the fix is applied, and the re-check comes back clean; nothing runs and no token is spent" width="860">
+  </a>
+</p>
+<p align="center"><sub><code>nika check</code> in a terminal: the audit this action posts on your pull requests. Notice that each finding names its code and its fix, and the re-check ends in <code>run ready</code>. Output captured from the real CLI; nothing runs and no token is spent. Click to open it full size.</sub></p>
+
 ## What you get
 
 <table>
@@ -230,25 +242,19 @@ and the comment starts with:
   </tr>
 </table>
 
-<table>
-  <tr>
-    <td align="center" valign="top" width="33%">
-      <a href="https://github.com/supernovae-st/nika/raw/refs/heads/main/media/videos/permits-audit.mp4"><img src="https://raw.githubusercontent.com/supernovae-st/nika/main/media/posters/permits-audit.png" alt="A workflow's declared permits drawn as a map; nika check catches the task that fetches a host outside them, and the widened boundary checks clean" width="240"></a>
-      <br><b>The boundary, enforced</b>
-      <br><sub>A workflow lists what it may reach in <code>permits:</code>. The check flags the task that reaches past it.</sub>
-    </td>
-    <td align="center" valign="top" width="33%">
-      <a href="https://github.com/supernovae-st/nika/raw/refs/heads/main/media/videos/editor-diagnostics.mp4"><img src="https://raw.githubusercontent.com/supernovae-st/nika/main/media/posters/editor-diagnostics.png" alt="An editor shows the findings the Nika language server publishes for a broken workflow; one keystroke fixes a typo, and the fixed file shows no problems" width="240"></a>
-      <br><b>Catch it before you push</b>
-      <br><sub>The language server (<code>nika lsp</code>) shows the same findings in your editor as you type.</sub>
-    </td>
-    <td align="center" valign="top" width="33%">
-      <a href="https://github.com/supernovae-st/nika/raw/refs/heads/main/media/videos/full-loop.mp4"><img src="https://raw.githubusercontent.com/supernovae-st/nika/main/media/posters/full-loop.png" alt="The first four commands on the real CLI: nika compile, nika check, nika run and nika trace verify, all offline" width="240"></a>
-      <br><b>New to Nika?</b>
-      <br><sub>Compile, check, run and verify a first workflow in four commands, offline.</sub>
-    </td>
-  </tr>
-</table>
+**The boundary, enforced: watch the check flag the task that reaches past
+its workflow's `permits:`.**
+
+<p align="center">
+  <a href="https://raw.githubusercontent.com/supernovae-st/nika/main/media/gifs/permits-audit.optimized.gif">
+    <img src="https://raw.githubusercontent.com/supernovae-st/nika/main/media/gifs/permits-audit.optimized.gif"
+         alt="A workflow's declared permits drawn as a map; nika check catches the task that fetches a host outside them, and the widened boundary checks clean" width="860">
+  </a>
+</p>
+<p align="center"><sub>Notice the host the file never listed: the check names it and the fix, and the widened boundary checks clean. Output captured from the real CLI; the map is drawn from the file's own <code>permits:</code>. Click to open it full size.</sub></p>
+
+▶ [Watch the language server catch a mistake before you push](https://raw.githubusercontent.com/supernovae-st/nika/main/media/gifs/editor-diagnostics.optimized.gif):
+`nika lsp` shows the same findings in your editor as you type.
 
 <details>
 <summary><b>How the cost floor stays honest</b></summary>

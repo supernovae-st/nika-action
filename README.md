@@ -339,7 +339,7 @@ fails after it.
 | `workflow` | required | path to one `.nika` file ([several files?](#checking-several-files)) |
 | `mode` | `check` | `check` or `test`; anything else stops the job |
 | `comment` | `true` | post the comment on `pull_request` events (needs `pull-requests: write`) |
-| `engine-version` | `0.121.0` | the engine release to install, verified against the release's `SHA256SUMS` |
+| `engine-version` | `0.122.0` | the engine release to install, verified against the release's `SHA256SUMS` |
 | `native-strict` | `false` | also fail while the check suggests replacing a shell step with a built-in or MCP tool (`nika check --native-strict`) |
 | `github-token` | `github.token` | token used to post the comment |
 

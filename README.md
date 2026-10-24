@@ -150,7 +150,7 @@ name: Nika writes the file only when no question is left open.
 Each workflow file gets its own comment, and every push updates it in place.
 This is the comment for the example workflow. A GitHub Actions run cannot be
 replayed on a laptop, so it was produced by running the action's own scripts
-by hand against the released engine 0.121.0:
+by hand against the released engine 0.123.0:
 
 > ✅ **nika check** — clean · `flows/readme-summary.nika` · 2 task(s) · 2 wave(s)
 >
@@ -173,7 +173,7 @@ by hand against the released engine 0.121.0:
 >
 > </details>
 > ---
-> <sub>nika 0.121.0 · report_version 1 · floor semantics: spend ≥ floor · [what this checks](https://docs.nika.sh/reference/machine-surfaces)</sub>
+> <sub>nika 0.123.0 · report_version 1 · floor semantics: spend ≥ floor · [what this checks](https://docs.nika.sh/reference/machine-surfaces)</sub>
 > <!-- nika-action:v1:flows/readme-summary.nika -->
 
 Producing it spent nothing, called no provider and read no key. Real comments
@@ -198,7 +198,7 @@ order `nika check` plans.**
 The job exits with the check's own code, 2 when there are findings, and the
 comment starts with a table of them. This repository's CI proves it on
 [`fixtures/broken.nika`](fixtures/broken.nika), a workflow that reads the
-output of a task that does not exist. On engine 0.121.0, `nika check` reports:
+output of a task that does not exist. On engine 0.123.0, `nika check` reports:
 
 ```
  ✖ CONFORM  [NIKA-DAG-002] unknown dependency: task `use_ghost` depends on `ghost`, which does not exist
@@ -393,7 +393,7 @@ jobs:
 - **Verified download.** Before extracting the engine, the job checks the
   tarball against the `SHA256SUMS` file published with the same release, and
   stops on any mismatch. That proves the download is the published file;
-  [SECURITY.md](SECURITY.md) explains what it does not prove yet.
+  [SECURITY.md](SECURITY.md) explains what it does not prove.
 - **No provider keys.** Neither mode needs or reads one.
 - **Forks cannot escalate.** On a pull request from a fork, GitHub gives the
   job a read-only token: the comment is skipped and the report stays in the
@@ -440,7 +440,7 @@ review.
 
 No. A missing key is not a finding. The example workflow with
 `mistral/mistral-small-latest` instead of `mock/echo`, checked on engine
-0.121.0 with no key set, still exits 0 with `clean: true` and a priced floor
+0.123.0 with no key set, still exits 0 with `clean: true` and a priced floor
 (`cost floor ≥ $0.0001`). Run by hand, `nika check` names what a real run
 would miss on its ACCESS line:
 

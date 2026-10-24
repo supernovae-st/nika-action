@@ -18,14 +18,18 @@ Please report vulnerabilities privately via
   pinned GitHub release and verified against the release's `SHA256SUMS`
   before it runs (fail-closed). Pin the action itself by full SHA for the
   strongest supply-chain posture:
-  `uses: supernovae-st/nika-action@<commit-sha> # v1.0.2`.
+  `uses: supernovae-st/nika-action@<commit-sha> # v1.x.y`. The README's
+  quick start shows the current release's pin, kept up to date by the
+  release workflow.
 - **Fork PRs degrade, never escalate.** The default fork token is
   read-only: the sticky comment falls back to the step summary. Do not
   grant `pull_request_target` to work around this — the README says the
   same, on purpose.
-- **Verification is transfer-integrity today.** `SHA256SUMS` ships in the
-  same release as the tarball (trust-on-first-use per release). Signed
-  provenance is tracked upstream on the engine's trust roadmap.
+- **The action verifies transfer integrity only.** `SHA256SUMS` ships in the
+  same release as the tarball (trust-on-first-use per release). The engine
+  release also publishes SLSA provenance and a GitHub artifact attestation;
+  this action does not verify them. To check a tarball by hand:
+  `gh attestation verify <tarball> --repo supernovae-st/nika`.
 
 ## Supported versions
 

@@ -103,7 +103,7 @@ comments. A clean check passes; findings fail the job.
 > keeps the example below current.
 
 ```yaml
-      - uses: supernovae-st/nika-action@74bef6507808eb57afa77c0dfe344dc406a2d063 # v1.0.34
+      - uses: supernovae-st/nika-action@2cb48564bd4359cf7f4d91a4cf685557a527c14d # v1.0.35
 ```
 
 <details>
